@@ -1,0 +1,134 @@
+{% extends 'base_new.html' %}
+
+{% block title %}Student Dashboard - NCERT Learning{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Welcome Section -->
+    <div class="mb-8 fade-in">
+        <h1 class="text-4xl font-bold text-gray-800 mb-2">
+            Welcome back, {{ user.username }}!
+        </h1>
+        <p class="text-gray-600">
+            Ready to continue your learning journey?
+        </p>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="grid md:grid-cols-3 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm font-semibold uppercase">Total Chats</p>
+                    <p class="text-3xl font-bold text-blue-600">{{ total_chats }}</p>
+                </div>
+                <div class="text-blue-500 text-4xl">
+                    <i class="fas fa-comments"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in" style="animation-delay: 0.1s">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm font-semibold uppercase">Your Standard</p>
+                    <p class="text-3xl font-bold text-green-600">{{ user.standard|default:"N/A" }}</p>
+                </div>
+                <div class="text-green-500 text-4xl">
+                    <i class="fas fa-graduation-cap"></i>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in" style="animation-delay: 0.2s">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm font-semibold uppercase">AI Tutor</p>
+                    <p class="text-xl font-bold text-purple-600">24/7 Available</p>
+                </div>
+                <div class="text-purple-500 text-4xl">
+                    <i class="fas fa-robot"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="mb-8 fade-in">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Quick Actions</h2>
+        <div class="grid md:grid-cols-2 gap-4">
+            <a href="{% url 'chatbot_page' %}" 
+               class="block bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">
+                            <i class="fas fa-comments mr-2"></i>Start Chat
+                        </h3>
+                        <p class="text-blue-100">Ask your AI tutor any question</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-3xl"></i>
+                </div>
+            </a>
+            
+            <div class="block bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-6 text-white shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">
+                            <i class="fas fa-book mr-2"></i>Study Materials
+                        </h3>
+                        <p class="text-green-100">Standards 5-10 NCERT content</p>
+                    </div>
+                    <i class="fas fa-check-circle text-3xl"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recent Chats -->
+    <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">
+            <i class="fas fa-history mr-2 text-gray-600"></i>
+            Recent Chats
+        </h2>
+        
+        {% if recent_chats %}
+            <div class="space-y-4">
+                {% for chat in recent_chats %}
+                    <div class="border-l-4 border-blue-500 pl-4 py-2 hover:bg-gray-50 transition">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <p class="font-semibold text-gray-800 mb-1">
+                                    <i class="fas fa-question-circle text-blue-500 mr-1"></i>
+                                    {{ chat.question|truncatewords:15 }}
+                                </p>
+                                <p class="text-gray-600 text-sm mb-2">
+                                    {{ chat.answer|truncatewords:25 }}
+                                </p>
+                                <p class="text-xs text-gray-500">
+                                    <i class="far fa-clock mr-1"></i>
+                                    {{ chat.created_at|timesince }} ago
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            
+            {% if total_chats > 10 %}
+                <div class="mt-4 text-center">
+                    <p class="text-gray-500">Showing 10 most recent chats</p>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-comment-slash text-gray-300 text-6xl mb-4"></i>
+                <p class="text-gray-500 mb-4">No chat history yet</p>
+                <a href="{% url 'chatbot_page' %}" 
+                   class="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition">
+                    <i class="fas fa-comments mr-2"></i>Start Your First Chat
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

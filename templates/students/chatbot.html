@@ -1,0 +1,224 @@
+{% extends 'base_new.html' %}
+
+{% block title %}AI Chatbot - NCERT Learning{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8" x-data="chatbot()">
+    <!-- Header -->
+    <div class="mb-6 fade-in">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">
+            <i class="fas fa-robot text-blue-500 mr-2"></i>
+            AI Tutor
+        </h1>
+        <p class="text-gray-600">Ask any question about your NCERT curriculum. I'm here to help!</p>
+    </div>
+    
+    <!-- Model Selection -->
+    <div class="bg-white rounded-lg shadow-md p-4 mb-4 fade-in">
+        <div class="flex items-center justify-between">
+            <label class="text-sm font-semibold text-gray-700">AI Model:</label>
+            <div class="flex space-x-4">
+                <label class="flex items-center cursor-pointer">
+                    <input type="radio" name="model" value="openai" x-model="selectedModel" class="mr-2">
+                    <span class="text-sm">OpenAI GPT-4</span>
+                </label>
+                <label class="flex items-center cursor-pointer">
+                    <input type="radio" name="model" value="gemini" x-model="selectedModel" class="mr-2">
+                    <span class="text-sm">Google Gemini</span>
+                </label>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Chat Container -->
+    <div class="bg-white rounded-lg shadow-lg overflow-hidden fade-in">
+        <!-- Messages Area -->
+        <div id="chatMessages" class="h-[500px] overflow-y-auto p-6 space-y-4 bg-gray-50">
+            <!-- Welcome Message -->
+            <div class="chat-bubble flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                </div>
+                <div class="flex-1">
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <p class="text-gray-800">
+                            Hello! I'm your AI tutor. Ask me anything about your NCERT subjects like Mathematics, 
+                            Science, Social Studies, and more. I'm here to help you learn!
+                        </p>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">AI Tutor • Just now</p>
+                </div>
+            </div>
+            
+            <!-- Messages will be added here dynamically -->
+            <template x-for="(message, index) in messages" :key="index">
+                <div class="chat-bubble" :class="message.isUser ? 'flex-row-reverse' : 'flex-row'" 
+                     class="flex items-start space-x-3">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center text-white"
+                             :class="message.isUser ? 'bg-purple-500' : 'bg-blue-500'">
+                            <i :class="message.isUser ? 'fas fa-user' : 'fas fa-robot'"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <div class="rounded-lg shadow p-4"
+                             :class="message.isUser ? 'bg-purple-100' : 'bg-white'">
+                            <p class="text-gray-800 whitespace-pre-wrap" x-html="message.text"></p>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1" 
+                           :class="message.isUser ? 'text-right' : 'text-left'">
+                            <span x-text="message.isUser ? 'You' : 'AI Tutor'"></span> • 
+                            <span x-text="message.time"></span>
+                        </p>
+                    </div>
+                </div>
+            </template>
+            
+            <!-- Typing Indicator -->
+            <div x-show="isTyping" class="chat-bubble flex items-start space-x-3">
+                <div class="flex-shrink-0">
+                    <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                </div>
+                <div class="flex-1">
+                    <div class="bg-white rounded-lg shadow p-4">
+                        <div class="typing-indicator flex space-x-1">
+                            <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+                            <span class="w-2 h-2 bg-gray-400 rounded-full"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Input Area -->
+        <div class="border-t border-gray-200 p-4 bg-white">
+            <form @submit.prevent="sendMessage" class="flex space-x-2">
+                <input 
+                    type="text" 
+                    x-model="currentMessage"
+                    placeholder="Ask your question here..."
+                    class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    :disabled="isTyping"
+                >
+                <button 
+                    type="submit"
+                    class="px-6 py-3 gradient-bg text-white rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50"
+                    :disabled="!currentMessage.trim() || isTyping">
+                    <i class="fas fa-paper-plane mr-2"></i>Send
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function chatbot() {
+    return {
+        messages: [],
+        currentMessage: '',
+        isTyping: false,
+        selectedModel: 'openai',
+        
+        sendMessage() {
+            if (!this.currentMessage.trim()) return;
+            
+            const userMessage = this.currentMessage;
+            const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            // Add user message
+            this.messages.push({
+                text: userMessage,
+                isUser: true,
+                time: now
+            });
+            
+            // Clear input
+            this.currentMessage = '';
+            
+            // Scroll to bottom
+            this.$nextTick(() => {
+                const chatBox = document.getElementById('chatMessages');
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
+            
+            // Show typing indicator
+            this.isTyping = true;
+            
+            // Get CSRF token
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                            this.getCookie('csrftoken');
+            
+            // Send to backend
+            fetch('{% url "ask_chatbot" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-CSRFToken': csrftoken
+                },
+                body: new URLSearchParams({
+                    'question': userMessage,
+                    'model': this.selectedModel
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                this.isTyping = false;
+                
+                if (data.status === 'success') {
+                    const aiTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    this.messages.push({
+                        text: data.answer,
+                        isUser: false,
+                        time: aiTime
+                    });
+                } else {
+                    this.messages.push({
+                        text: 'Sorry, something went wrong. Please try again.',
+                        isUser: false,
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    });
+                }
+                
+                // Scroll to bottom
+                this.$nextTick(() => {
+                    const chatBox = document.getElementById('chatMessages');
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                this.isTyping = false;
+                this.messages.push({
+                    text: 'Network error. Please check your connection and try again.',
+                    isUser: false,
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                });
+            });
+        },
+        
+        getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    };
+}
+</script>
+{% endblock %}

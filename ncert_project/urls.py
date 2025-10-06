@@ -1,22 +1,28 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.shortcuts import render
+from django.conf import settings
+from django.conf.urls.static import static
 
-# Temporary placeholder views
+# Home view
 def home_view(request):
-    return render(request, 'base.html', {'message': 'Welcome to NCERT Project'})
-
-def student_dashboard_view(request):
-    return render(request, 'base.html', {'message': 'Student Dashboard - Coming Soon'})
+    if request.user.is_authenticated:
+        if hasattr(request.user, 'role') and request.user.role == 'super_admin':
+            from django.shortcuts import redirect
+            return redirect('superadmin:dashboard')
+        else:
+            from django.shortcuts import redirect
+            return redirect('student_dashboard')
+    return render(request, 'home.html')
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("accounts/", include("accounts.urls", namespace="accounts")),
-    
-    # Temporary placeholder routes
+    path("students/", include("students.urls")),
+    path("superadmin/", include("superadmin.urls")),
     path("", home_view, name="home"),
-    path("dashboard/student/", student_dashboard_view, name="student_dashboard"),
-    
-    # Placeholder dashboard route for students
-    # path("", include("students.urls")),  # Create 'students' app later
 ]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

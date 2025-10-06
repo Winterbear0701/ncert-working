@@ -1,0 +1,191 @@
+{% extends 'base_new.html' %}
+
+{% block title %}Superadmin Dashboard - NCERT Learning{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Header -->
+    <div class="mb-8 fade-in">
+        <h1 class="text-4xl font-bold text-gray-800 mb-2">
+            <i class="fas fa-tachometer-alt text-purple-600 mr-2"></i>
+            Superadmin Dashboard
+        </h1>
+        <p class="text-gray-600">Manage NCERT PDF uploads and monitor processing status</p>
+    </div>
+    
+    <!-- Stats Grid -->
+    <div class="grid md:grid-cols-5 gap-4 mb-8">
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in">
+            <div class="text-center">
+                <div class="text-blue-500 text-3xl mb-2">
+                    <i class="fas fa-file-pdf"></i>
+                </div>
+                <p class="text-3xl font-bold text-gray-800">{{ total_uploads }}</p>
+                <p class="text-gray-500 text-sm">Total Uploads</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in" style="animation-delay: 0.1s">
+            <div class="text-center">
+                <div class="text-yellow-500 text-3xl mb-2">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <p class="text-3xl font-bold text-gray-800">{{ queued }}</p>
+                <p class="text-gray-500 text-sm">Queued</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in" style="animation-delay: 0.2s">
+            <div class="text-center">
+                <div class="text-purple-500 text-3xl mb-2">
+                    <i class="fas fa-spinner fa-spin"></i>
+                </div>
+                <p class="text-3xl font-bold text-gray-800">{{ processing }}</p>
+                <p class="text-gray-500 text-sm">Processing</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in" style="animation-delay: 0.3s">
+            <div class="text-center">
+                <div class="text-green-500 text-3xl mb-2">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <p class="text-3xl font-bold text-gray-800">{{ completed }}</p>
+                <p class="text-gray-500 text-sm">Completed</p>
+            </div>
+        </div>
+        
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in" style="animation-delay: 0.4s">
+            <div class="text-center">
+                <div class="text-red-500 text-3xl mb-2">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <p class="text-3xl font-bold text-gray-800">{{ failed }}</p>
+                <p class="text-gray-500 text-sm">Failed</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Actions -->
+    <div class="mb-8 fade-in">
+        <div class="grid md:grid-cols-2 gap-4">
+            <a href="{% url 'superadmin:upload_book' %}" 
+               class="block bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">
+                            <i class="fas fa-cloud-upload-alt mr-2"></i>Upload New PDF
+                        </h3>
+                        <p class="text-blue-100">Add NCERT textbook to the system</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-3xl"></i>
+                </div>
+            </a>
+            
+            <a href="{% url 'superadmin:upload_list' %}" 
+               class="block bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold mb-2">
+                            <i class="fas fa-list mr-2"></i>View All Uploads
+                        </h3>
+                        <p class="text-green-100">Manage uploaded documents</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-3xl"></i>
+                </div>
+            </a>
+        </div>
+    </div>
+    
+    <!-- Recent Uploads -->
+    <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">
+            <i class="fas fa-history mr-2 text-gray-600"></i>
+            Recent Uploads
+        </h2>
+        
+        {% if recent_uploads %}
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                File
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Standard
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Subject
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Chapter
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Status
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Uploaded
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for upload in recent_uploads %}
+                            <tr class="hover:bg-gray-50 transition">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-file-pdf text-red-500 mr-2"></i>
+                                        <div class="text-sm font-medium text-gray-900">
+                                            {{ upload.original_filename|truncatechars:30 }}
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {{ upload.standard }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {{ upload.subject }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {{ upload.chapter }}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {% if upload.status == 'done' %}
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                                            <i class="fas fa-check mr-1"></i>Completed
+                                        </span>
+                                    {% elif upload.status == 'processing' %}
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                                            <i class="fas fa-spinner fa-spin mr-1"></i>Processing
+                                        </span>
+                                    {% elif upload.status == 'queued' %}
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                            <i class="fas fa-clock mr-1"></i>Queued
+                                        </span>
+                                    {% else %}
+                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                            <i class="fas fa-times mr-1"></i>Failed
+                                        </span>
+                                    {% endif %}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    {{ upload.uploaded_at|timesince }} ago
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="text-center py-8">
+                <i class="fas fa-inbox text-gray-300 text-6xl mb-4"></i>
+                <p class="text-gray-500 mb-4">No uploads yet</p>
+                <a href="{% url 'superadmin:upload_book' %}" 
+                   class="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition">
+                    <i class="fas fa-upload mr-2"></i>Upload Your First PDF
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

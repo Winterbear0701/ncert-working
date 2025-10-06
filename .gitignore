@@ -22,7 +22,7 @@ var/
 wheels/
 pip-wheel-metadata/
 share/python-wheels/
-*.egg-info/
+*.egg-info/ 
 .installed.cfg
 *.egg
 MANIFEST
@@ -168,6 +168,12 @@ Thumbs.db
 logs/
 *.log
 
+# ChromaDB data (vector database storage)
+chromadb_data/
+
+# Media files (uploaded PDFs - optional, remove if you want to track)
+media/uploads/
+
 # Virtual environments
 ncert/
 Lib/
@@ -175,6 +181,9 @@ Scripts/
 pyvenv.cfg
 include/
 bin/
+
+# Nougat OCR (large model files)
+nougat/
 
 # Node.js (if you add frontend later)
 node_modules/
