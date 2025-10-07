@@ -30,7 +30,7 @@
                     @drop.prevent="handleDrop"
                     :class="isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300'"
                     class="border-2 border-dashed rounded-lg p-8 text-center transition cursor-pointer hover:border-blue-400"
-                    @click="$refs.fileInput.click()">
+                    @click="$el.querySelector('input[type=file]').click()">
                     
                     <i class="fas fa-cloud-upload-alt text-6xl text-gray-400 mb-4"></i>
                     
@@ -42,11 +42,10 @@
                     <input 
                         type="file" 
                         name="file" 
-                        ref="fileInput"
+                        x-ref="fileInput"
                         accept=".pdf"
                         @change="handleFileSelect"
-                        class="hidden"
-                        required>
+                        class="hidden">
                 </div>
                 
                 <!-- Selected File Display -->
@@ -179,7 +178,10 @@ function uploadForm() {
             const file = event.dataTransfer.files[0];
             if (file && file.type === 'application/pdf') {
                 this.selectedFile = file;
-                this.$refs.fileInput.files = event.dataTransfer.files;
+                // Update the file input
+                const dataTransfer = new DataTransfer();
+                dataTransfer.items.add(file);
+                this.$refs.fileInput.files = dataTransfer.files;
                 document.getElementById('id_original_filename').value = file.name;
             } else {
                 alert('Please drop a valid PDF file');
@@ -199,9 +201,20 @@ function uploadForm() {
         },
         
         submitForm(event) {
+            // Validate file
             if (!this.selectedFile) {
                 alert('Please select a PDF file');
-                return;
+                return false;
+            }
+            
+            // Validate other fields
+            const standard = document.getElementById('id_standard').value;
+            const subject = document.getElementById('id_subject').value;
+            const chapter = document.getElementById('id_chapter').value;
+            
+            if (!standard || !subject || !chapter) {
+                alert('Please fill in all required fields');
+                return false;
             }
             
             this.uploading = true;
@@ -209,40 +222,59 @@ function uploadForm() {
             
             const formData = new FormData(event.target);
             
-            // Simulate progress (in production, use XMLHttpRequest for real progress)
+            // Add file to formData if not already there
+            if (this.selectedFile) {
+                formData.set('file', this.selectedFile);
+            }
+            
+            // Simulate progress
             const progressInterval = setInterval(() => {
                 if (this.uploadProgress < 90) {
                     this.uploadProgress += 10;
                 }
-            }, 200);
+            }, 300);
+            
+            // Get CSRF token
+            const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
             
             fetch('{% url "superadmin:upload_book" %}', {
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRFToken': csrftoken
                 }
             })
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
                 clearInterval(progressInterval);
                 this.uploadProgress = 100;
                 
                 if (data.status === 'success') {
+                    alert('PDF uploaded and processed successfully!');
                     setTimeout(() => {
                         window.location.href = '{% url "superadmin:upload_list" %}';
                     }, 500);
                 } else {
-                    alert('Upload failed. Please try again.');
+                    alert('Upload failed: ' + (data.error || 'Unknown error'));
                     this.uploading = false;
+                    this.uploadProgress = 0;
                 }
             })
             .catch(error => {
                 clearInterval(progressInterval);
                 console.error('Error:', error);
-                alert('Upload failed. Please try again.');
+                alert('Upload failed: ' + error.message);
                 this.uploading = false;
+                this.uploadProgress = 0;
             });
+            
+            return false;
         }
     };
 }

@@ -51,22 +51,38 @@ def upload_book(request):
             obj.uploader = request.user
             obj.save()
             
-            # Queue background processing job
-            from superadmin.tasks import process_uploaded_book
-            job = process_uploaded_book.delay(obj.id)
-            obj.ingestion_job_id = job.id
-            obj.save()
-            
-            logger.info(f"Queued processing for upload {obj.id}: {obj.original_filename}")
-            
-            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-                return JsonResponse({
-                    'status': 'success',
-                    'upload_id': obj.id,
-                    'job_id': job.id
-                })
-            
-            return redirect('superadmin:upload_list')
+            # Try to process immediately (without Celery for now)
+            try:
+                # Import processing functions
+                from superadmin.tasks import process_uploaded_book_sync
+                
+                # Process synchronously
+                result = process_uploaded_book_sync(obj.id)
+                
+                logger.info(f"Processed upload {obj.id}: {result}")
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'status': 'success',
+                        'upload_id': obj.id,
+                        'message': 'PDF processed successfully'
+                    })
+                
+                return redirect('superadmin:upload_list')
+                
+            except Exception as e:
+                logger.error(f"Error processing upload: {str(e)}")
+                obj.status = 'failed'
+                obj.notes = f"Processing error: {str(e)}"
+                obj.save()
+                
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    return JsonResponse({
+                        'status': 'error',
+                        'error': str(e)
+                    }, status=500)
+                
+                return redirect('superadmin:upload_list')
     else:
         form = UploadBookForm()
     

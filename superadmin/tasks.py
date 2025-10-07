@@ -39,53 +39,99 @@ collection = chroma_client.get_or_create_collection(
     metadata={"description": "NCERT textbook content for RAG"}
 )
 
-def extract_text_from_pdf(pdf_path):
+def is_math_heavy_subject(subject):
+    """Check if subject needs special OCR for equations"""
+    math_subjects = ['mathematics', 'math', 'physics', 'chemistry', 'science']
+    return any(subj in subject.lower() for subj in math_subjects)
+
+
+def extract_text_from_pdf(pdf_path, subject=""):
     """
-    Extract text from PDF using pdfplumber
-    Returns list of (page_num, text) tuples
+    Extract text from PDF with enhanced handling for math/science content
+    Uses pdfplumber for regular text and can be extended with Nougat for equations
+    Returns list of (page_num, text, has_equations) tuples
     """
     pages_data = []
+    use_enhanced_extraction = is_math_heavy_subject(subject)
     
     try:
         with pdfplumber.open(pdf_path) as pdf:
+            total_pages = len(pdf.pages)
+            logger.info(f"Processing {total_pages} pages from PDF (Enhanced: {use_enhanced_extraction})")
+            
             for i, page in enumerate(pdf.pages, start=1):
                 text = page.extract_text() or ""
                 
                 # Clean up the text
                 text = text.strip()
                 
-                if text:  # Only add pages with content
-                    pages_data.append((i, text))
-                    logger.info(f"Extracted page {i}: {len(text)} characters")
+                # Detect if page has mathematical symbols
+                math_symbols = ['=', '+', '-', '×', '÷', '∫', '∑', '√', '∞', '≤', '≥', 'π']
+                has_equations = any(symbol in text for symbol in math_symbols)
+                
+                if text:
+                    # Additional cleaning for better chunking
+                    # Remove excessive whitespace
+                    text = ' '.join(text.split())
+                    
+                    # Preserve line breaks for better structure
+                    text = text.replace('. ', '.\n')
+                    
+                    pages_data.append((i, text, has_equations))
+                    
+                    symbol_count = sum(text.count(s) for s in math_symbols)
+                    logger.info(f"Extracted page {i}/{total_pages}: {len(text)} chars, "
+                               f"math symbols: {symbol_count}")
                 else:
-                    logger.warning(f"Page {i} has no extractable text")
+                    logger.warning(f"Page {i}/{total_pages} has no extractable text")
                     
     except Exception as e:
         logger.error(f"Error extracting PDF: {str(e)}")
         raise
-        
+    
+    logger.info(f"✅ Extracted {len(pages_data)} pages with content")
     return pages_data
 
 
 def chunk_text_with_metadata(pages_data, book_obj):
     """
-    Chunk pages into smaller pieces with metadata
+    Enhanced chunking with better handling for equations and structured content
     Returns list of dicts with text and metadata
     """
+    # Adjust chunk size based on subject
+    is_math_heavy = is_math_heavy_subject(book_obj.subject)
+    
+    if is_math_heavy:
+        # Smaller chunks for math/science to keep equations intact
+        chunk_size = 800
+        chunk_overlap = 150
+    else:
+        # Larger chunks for text-heavy subjects
+        chunk_size = 1200
+        chunk_overlap = 200
+    
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200,
+        chunk_size=chunk_size,
+        chunk_overlap=chunk_overlap,
         length_function=len,
         separators=["\n\n", "\n", ". ", " ", ""]
     )
     
     chunks = []
+    total_equations = 0
     
-    for page_num, page_text in pages_data:
+    for page_num, page_text, has_equations in pages_data:
         # Split page into chunks
         text_chunks = splitter.split_text(page_text)
         
         for chunk_idx, chunk_text in enumerate(text_chunks):
+            # Count math symbols in chunk
+            math_symbols = ['=', '+', '-', '×', '÷', '∫', '∑', '√', '∞', '≤', '≥']
+            equation_count = sum(chunk_text.count(s) for s in math_symbols)
+            
+            if equation_count > 0:
+                total_equations += 1
+            
             metadata = {
                 "standard": str(book_obj.standard),
                 "subject": str(book_obj.subject),
@@ -96,6 +142,9 @@ def chunk_text_with_metadata(pages_data, book_obj):
                 "upload_id": str(book_obj.id),
                 "uploaded_at": book_obj.uploaded_at.isoformat(),
                 "char_count": len(chunk_text),
+                "has_equations": has_equations,
+                "equation_count": equation_count,
+                "content_type": "math_heavy" if is_math_heavy else "text_heavy"
             }
             
             chunks.append({
@@ -104,15 +153,16 @@ def chunk_text_with_metadata(pages_data, book_obj):
                 "metadata": metadata
             })
     
-    logger.info(f"Created {len(chunks)} chunks from {len(pages_data)} pages")
+    logger.info(f"✅ Created {len(chunks)} chunks from {len(pages_data)} pages "
+               f"({total_equations} chunks with equations)")
     return chunks
 
-@shared_task(bind=True, max_retries=3)
-def process_uploaded_book(self, uploaded_book_id):
+def process_uploaded_book_sync(uploaded_book_id):
     """
-    Process uploaded PDF: extract, chunk, and store in ChromaDB
+    Synchronous version: Process uploaded PDF immediately without Celery
+    Enhanced with subject-aware extraction and better chunking
     """
-    logger.info(f"Processing upload ID: {uploaded_book_id}")
+    logger.info(f"Processing upload ID: {uploaded_book_id} (SYNC)")
     
     try:
         # Get the uploaded book object
@@ -120,9 +170,93 @@ def process_uploaded_book(self, uploaded_book_id):
         book_obj.status = 'processing'
         book_obj.save()
         
-        # Extract text from PDF
+        # Extract text from PDF with subject-aware processing
         logger.info(f"Extracting text from: {book_obj.file.path}")
-        pages_data = extract_text_from_pdf(book_obj.file.path)
+        logger.info(f"📚 Subject: {book_obj.subject}, Standard: {book_obj.standard}, Chapter: {book_obj.chapter}")
+        pages_data = extract_text_from_pdf(book_obj.file.path, subject=book_obj.subject)
+        
+        if not pages_data:
+            raise ValueError("No text could be extracted from PDF")
+        
+        # Chunk the text with metadata
+        chunks = chunk_text_with_metadata(pages_data, book_obj)
+        
+        if not chunks:
+            raise ValueError("No chunks created from PDF")
+        
+        # Store in ChromaDB in batches
+        batch_size = 100
+        total_added = 0
+        
+        for i in range(0, len(chunks), batch_size):
+            batch = chunks[i:i + batch_size]
+            
+            ids = [c["id"] for c in batch]
+            documents = [c["text"] for c in batch]
+            metadatas = [c["metadata"] for c in batch]
+            
+            # Generate embeddings
+            embeddings = get_embeddings(documents)
+            
+            # Add to ChromaDB
+            collection.add(
+                ids=ids,
+                documents=documents,
+                embeddings=embeddings,
+                metadatas=metadatas
+            )
+            
+            total_added += len(batch)
+            logger.info(f"Added batch {i//batch_size + 1}: {len(batch)} chunks")
+        
+        # Mark as complete
+        book_obj.status = 'done'
+        book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages"
+        book_obj.save()
+        
+        logger.info(f"Successfully processed upload {uploaded_book_id}: {total_added} chunks")
+        
+        return {
+            "status": "success",
+            "upload_id": uploaded_book_id,
+            "pages_processed": len(pages_data),
+            "chunks_created": total_added
+        }
+        
+    except Exception as e:
+        logger.error(f"Error processing upload {uploaded_book_id}: {str(e)}", exc_info=True)
+        
+        # Update status to failed
+        try:
+            book_obj = UploadedBook.objects.get(id=uploaded_book_id)
+            book_obj.status = 'failed'
+            book_obj.notes = f"Error: {str(e)}"
+            book_obj.save()
+        except:
+            pass
+        
+        raise
+
+
+@shared_task(bind=True, max_retries=3)
+def process_uploaded_book(self, uploaded_book_id):
+    """
+    Celery async version: Process uploaded PDF in background
+    Enhanced with subject-aware extraction and better chunking
+    (Use this when Celery is running, otherwise use process_uploaded_book_sync)
+    """
+    logger.info(f"Processing upload ID: {uploaded_book_id} (ASYNC)")
+    
+    try:
+        # Get the uploaded book object
+        book_obj = UploadedBook.objects.get(id=uploaded_book_id)
+        book_obj.status = 'processing'
+        book_obj.save()
+        
+        # Extract text from PDF with subject-aware processing
+        logger.info(f"Extracting text from: {book_obj.file.path}")
+        logger.info(f"📚 Subject: {book_obj.subject}, Standard: {book_obj.standard}, Chapter: {book_obj.chapter}")
+        pages_data = extract_text_from_pdf(book_obj.file.path, subject=book_obj.subject)
         
         if not pages_data:
             raise ValueError("No text could be extracted from PDF")
