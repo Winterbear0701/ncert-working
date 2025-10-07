@@ -8,13 +8,14 @@ def register_view(request):
     if request.method == "POST":
         form = CustomUserCreationForm(request.POST)
         if form.is_valid():
-            user = form.save()
+            user = form.save(commit=False)
+            # Always assign student role during registration
+            user.role = "student"
+            user.save()
             login(request, user)
-
-            # Redirect based on user role
-            if user.role == "student":
-                return redirect("student_dashboard")
-            return redirect("home")
+            
+            # Always redirect students to their dashboard
+            return redirect("student_dashboard")
     else:
         form = CustomUserCreationForm()
 
@@ -24,6 +25,14 @@ def register_view(request):
 class MyLoginView(LoginView):
     template_name = "accounts/login.html"
     authentication_form = CustomAuthenticationForm
+    
+    def get_success_url(self):
+        """Redirect based on user role after login"""
+        user = self.request.user
+        if user.role == 'super_admin':
+            return '/superadmin/'
+        else:
+            return '/students/dashboard/'
 
 
 def logout_view(request):

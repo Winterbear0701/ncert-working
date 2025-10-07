@@ -1,16 +1,116 @@
-{% extends "base.html" %}
+{% extends 'base_new.html' %}
+
+{% block title %}Register - NCERT Learning{% endblock %}
 
 {% block content %}
-  <h2>Register</h2>
+<div class="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+    <div class="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-2xl fade-in">
+        <!-- Header -->
+        <div class="text-center">
+            <div class="mx-auto h-16 w-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                <i class="fas fa-user-plus text-white text-3xl"></i>
+            </div>
+            <h2 class="text-3xl font-extrabold text-gray-900">
+                Create Your Account
+            </h2>
+            <p class="mt-2 text-sm text-gray-600">
+                Join thousands of students learning with AI
+            </p>
+        </div>
 
-  <form method="post">
-    {% csrf_token %}
-    {{ form.as_p }}
-    <button type="submit">Create account</button>
-  </form>
+        <!-- Registration Form -->
+        <form method="post" class="mt-8 space-y-6">
+            {% csrf_token %}
+            
+            <div class="space-y-4">
+                <!-- Email Field -->
+                <div>
+                    <label for="{{ form.email.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-envelope mr-2 text-gray-500"></i>Email Address
+                    </label>
+                    {{ form.email }}
+                    {% if form.email.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.email.errors.0 }}</p>
+                    {% endif %}
+                </div>
 
-  <p>
-    Already have an account?
-    <a href="{% url 'accounts:login' %}">Login</a>
-  </p>
+                <!-- Name Field -->
+                <div>
+                    <label for="{{ form.name.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-user mr-2 text-gray-500"></i>Full Name
+                    </label>
+                    {{ form.name }}
+                    {% if form.name.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Age and Standard in Grid -->
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Age Field -->
+                    <div>
+                        <label for="{{ form.age.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-birthday-cake mr-2 text-gray-500"></i>Age
+                        </label>
+                        {{ form.age }}
+                        {% if form.age.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.age.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Standard Field -->
+                    <div>
+                        <label for="{{ form.standard.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                            <i class="fas fa-graduation-cap mr-2 text-gray-500"></i>Standard
+                        </label>
+                        {{ form.standard }}
+                        {% if form.standard.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.standard.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Password Field -->
+                <div>
+                    <label for="{{ form.password1.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-lock mr-2 text-gray-500"></i>Password
+                    </label>
+                    {{ form.password1 }}
+                    {% if form.password1.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.password1.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Confirm Password Field -->
+                <div>
+                    <label for="{{ form.password2.id_for_label }}" class="block text-sm font-semibold text-gray-700 mb-2">
+                        <i class="fas fa-lock mr-2 text-gray-500"></i>Confirm Password
+                    </label>
+                    {{ form.password2 }}
+                    {% if form.password2.errors %}
+                        <p class="mt-1 text-sm text-red-600">{{ form.password2.errors.0 }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div>
+                <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition duration-150 ease-in-out transform hover:scale-105">
+                    <i class="fas fa-user-plus mr-2"></i>
+                    Create Account
+                </button>
+            </div>
+
+            <!-- Login Link -->
+            <div class="text-center">
+                <p class="text-sm text-gray-600">
+                    Already have an account?
+                    <a href="{% url 'accounts:login' %}" class="font-medium text-purple-600 hover:text-purple-500 transition">
+                        Sign in here
+                    </a>
+                </p>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
