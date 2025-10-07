@@ -10,7 +10,6 @@ import os
 import logging
 from datetime import datetime
 import chromadb
-from chromadb.config import Settings as ChromaSettings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import SentenceTransformer
 import openai
@@ -21,10 +20,7 @@ logger = logging.getLogger('superadmin')
 openai.api_key = settings.OPENAI_API_KEY
 
 # Initialize ChromaDB with persistent storage
-chroma_client = chromadb.Client(ChromaSettings(
-    persist_directory=settings.CHROMA_PERSIST_DIRECTORY,
-    anonymized_telemetry=False
-))
+chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIRECTORY)
 
 # Use sentence transformers for embeddings (faster and free)
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -209,6 +205,9 @@ def process_uploaded_book_sync(uploaded_book_id):
             total_added += len(batch)
             logger.info(f"Added batch {i//batch_size + 1}: {len(batch)} chunks")
         
+        # Persist ChromaDB changes to disk
+        # chroma_client.persist()  # Automatic with persist_directory
+        
         # Mark as complete
         book_obj.status = 'done'
         book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages"
@@ -298,6 +297,9 @@ def process_uploaded_book(self, uploaded_book_id):
                 state='PROGRESS',
                 meta={'current': total_added, 'total': len(chunks), 'percent': progress}
             )
+        
+        # Persist ChromaDB changes to disk
+        # chroma_client.persist()  # Automatic with persist_directory
         
         # Mark as complete
         book_obj.status = 'done'

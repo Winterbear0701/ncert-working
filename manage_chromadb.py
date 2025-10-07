@@ -1,5 +1,5 @@
 """
-ChromaDB Management & Inspection Tool
+ChromaDB Mana    client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIRECTORY)nt & Inspection Tool
 View, search, and manage NCERT content in ChromaDB
 """
 import os
@@ -12,14 +12,10 @@ django.setup()
 
 from django.conf import settings
 import chromadb
-from chromadb.config import Settings as ChromaSettings
 
 def get_client():
     """Get ChromaDB client"""
-    return chromadb.Client(ChromaSettings(
-        persist_directory=settings.CHROMA_PERSIST_DIRECTORY,
-        anonymized_telemetry=False
-    ))
+    return chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIRECTORY)
 
 def view_stats():
     """View database statistics"""
