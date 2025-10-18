@@ -159,7 +159,7 @@ Return ONLY the JSON array."""
         # Fallback to Gemini
         if not result_text and gemini_api_key:
             try:
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 response = model.generate_content(prompt)
                 result_text = response.text
                 logger.info("✅ Gemini converted textbook questions to MCQs")

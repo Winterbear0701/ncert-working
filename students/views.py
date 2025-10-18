@@ -32,7 +32,7 @@ RAG_SYSTEM = {
     "embedding_model": None,
     "collection": None,
     "openai_model": "gpt-4o-mini",
-    "gemini_model": "gemini-2.5-flash",  # Updated to latest Gemini 2.5 Flash model
+    "gemini_model": "gemini-2.0-flash-exp",  # Updated to Gemini 2.0 Flash experimental
 }
 
 def initialize_rag_system():

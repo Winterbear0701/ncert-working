@@ -1,4 +1,5 @@
 {% extends 'base_new.html' %}
+{% load quiz_filters %}
 
 {% block title %}Quiz Analytics - {{ chapter.chapter_name }}{% endblock %}
 
@@ -183,7 +184,8 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
-                    {% for topic, avg in topic_averages.items %}
+                    {% for topic_data in topic_averages.items %}
+                    {% with topic=topic_data.0 avg=topic_data.1 %}
                     <tr>
                         <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ topic }}</td>
                         {% for attempt in attempts %}
@@ -207,6 +209,7 @@
                             </span>
                         </td>
                     </tr>
+                    {% endwith %}
                     {% endfor %}
                 </tbody>
             </table>

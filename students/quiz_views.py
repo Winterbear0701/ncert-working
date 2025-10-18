@@ -120,6 +120,12 @@ def start_quiz(request, chapter_id):
         
         # Load questions with appropriate variants
         questions = QuizQuestion.objects.filter(chapter=chapter).order_by('question_number')
+        
+        # Check if chapter has questions
+        if not questions.exists():
+            messages.warning(request, f'This chapter does not have quiz questions yet. Questions are being generated. Please try Chapter 1 or Chapter 2 for now.')
+            return redirect('quiz_dashboard')
+        
         questions_data = []
         
         for question in questions:
