@@ -1,6 +1,7 @@
 """
 Celery tasks for processing uploaded PDF documents
-Handles extraction, chunking, and ChromaDB ingestion
+Handles extraction, chunking, and ChromaDB ingestion with proper labeling
+Format: Class X, Subject: Y, Chapter: Z
 """
 from celery import shared_task
 from .models import UploadedBook
@@ -9,31 +10,19 @@ import pdfplumber
 import os
 import logging
 from datetime import datetime
-import chromadb
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from sentence_transformers import SentenceTransformer
 import openai
+
+# Import our enhanced ChromaDB manager
+from ncert_project.chromadb_utils import get_chromadb_manager
 
 logger = logging.getLogger('superadmin')
 
 # Initialize OpenAI
 openai.api_key = settings.OPENAI_API_KEY
 
-# Initialize ChromaDB with persistent storage
-chroma_client = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIRECTORY)
-
-# Use sentence transformers for embeddings (faster and free)
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
-
-def get_embeddings(texts):
-    """Generate embeddings using sentence transformers"""
-    return embedding_model.encode(texts).tolist()
-
-# Get or create collection
-collection = chroma_client.get_or_create_collection(
-    name=settings.CHROMA_COLLECTION_NAME,
-    metadata={"description": "NCERT textbook content for RAG"}
-)
+# Get ChromaDB manager instance
+chroma_manager = get_chromadb_manager()
 
 def is_math_heavy_subject(subject):
     """Check if subject needs special OCR for equations"""
@@ -92,7 +81,7 @@ def extract_text_from_pdf(pdf_path, subject=""):
 def chunk_text_with_metadata(pages_data, book_obj):
     """
     Enhanced chunking with better handling for equations and structured content
-    Returns list of dicts with text and metadata
+    Returns list of dicts with text and metadata ready for ChromaDB
     """
     # Adjust chunk size based on subject
     is_math_heavy = is_math_heavy_subject(book_obj.subject)
@@ -128,25 +117,17 @@ def chunk_text_with_metadata(pages_data, book_obj):
             if equation_count > 0:
                 total_equations += 1
             
-            metadata = {
-                "standard": str(book_obj.standard),
-                "subject": str(book_obj.subject),
-                "chapter": str(book_obj.chapter),
+            # Create chunk with metadata in the format expected by ChromaDB manager
+            chunks.append({
+                "text": chunk_text,
                 "page": page_num,
                 "chunk_index": chunk_idx,
-                "source_file": book_obj.original_filename,
-                "upload_id": str(book_obj.id),
-                "uploaded_at": book_obj.uploaded_at.isoformat(),
-                "char_count": len(chunk_text),
+                "chapter_num": book_obj.chapter,
                 "has_equations": has_equations,
                 "equation_count": equation_count,
-                "content_type": "math_heavy" if is_math_heavy else "text_heavy"
-            }
-            
-            chunks.append({
-                "id": f"upload_{book_obj.id}_page_{page_num}_chunk_{chunk_idx}",
-                "text": chunk_text,
-                "metadata": metadata
+                "content_type": "math_heavy" if is_math_heavy else "text_heavy",
+                "uploaded_at": book_obj.uploaded_at.isoformat(),
+                "upload_id": str(book_obj.id)
             })
     
     logger.info(f"✅ Created {len(chunks)} chunks from {len(pages_data)} pages "
@@ -156,7 +137,8 @@ def chunk_text_with_metadata(pages_data, book_obj):
 def process_uploaded_book_sync(uploaded_book_id):
     """
     Synchronous version: Process uploaded PDF immediately without Celery
-    Enhanced with subject-aware extraction and better chunking
+    Enhanced with subject-aware extraction and ChromaDB with proper labeling
+    Storage format: Class X, Subject: Y, Chapter: Z
     """
     logger.info(f"Processing upload ID: {uploaded_book_id} (SYNC)")
     
@@ -168,7 +150,7 @@ def process_uploaded_book_sync(uploaded_book_id):
         
         # Extract text from PDF with subject-aware processing
         logger.info(f"Extracting text from: {book_obj.file.path}")
-        logger.info(f"📚 Subject: {book_obj.subject}, Standard: {book_obj.standard}, Chapter: {book_obj.chapter}")
+        logger.info(f"📚 Class: {book_obj.standard}, Subject: {book_obj.subject}, Chapter: {book_obj.chapter}")
         pages_data = extract_text_from_pdf(book_obj.file.path, subject=book_obj.subject)
         
         if not pages_data:
@@ -180,40 +162,32 @@ def process_uploaded_book_sync(uploaded_book_id):
         if not chunks:
             raise ValueError("No chunks created from PDF")
         
-        # Store in ChromaDB in batches
-        batch_size = 100
-        total_added = 0
+        # Store in ChromaDB using the enhanced manager
+        logger.info(f"📝 Storing {len(chunks)} chunks in ChromaDB with labels:")
+        logger.info(f"   Class: {book_obj.standard}")
+        logger.info(f"   Subject: {book_obj.subject}")
+        logger.info(f"   Chapter: {book_obj.chapter}")
         
-        for i in range(0, len(chunks), batch_size):
-            batch = chunks[i:i + batch_size]
-            
-            ids = [c["id"] for c in batch]
-            documents = [c["text"] for c in batch]
-            metadatas = [c["metadata"] for c in batch]
-            
-            # Generate embeddings
-            embeddings = get_embeddings(documents)
-            
-            # Add to ChromaDB
-            collection.add(
-                ids=ids,
-                documents=documents,
-                embeddings=embeddings,
-                metadatas=metadatas
-            )
-            
-            total_added += len(batch)
-            logger.info(f"Added batch {i//batch_size + 1}: {len(batch)} chunks")
-        
-        # Persist ChromaDB changes to disk
-        # chroma_client.persist()  # Automatic with persist_directory
+        total_added = chroma_manager.add_document_chunks(
+            chunks=chunks,
+            standard=book_obj.standard,
+            subject=book_obj.subject,
+            chapter=book_obj.chapter,
+            source_file=book_obj.original_filename,
+            batch_size=100
+        )
         
         # Mark as complete
         book_obj.status = 'done'
         book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages"
         book_obj.save()
         
-        logger.info(f"Successfully processed upload {uploaded_book_id}: {total_added} chunks")
+        logger.info(f"✅ Successfully processed upload {uploaded_book_id}: {total_added} chunks")
+        
+        # Log ChromaDB stats
+        stats = chroma_manager.get_stats()
+        logger.info(f"📊 ChromaDB Stats: {stats['total_documents']} total documents, "
+                   f"{stats['total_classes']} classes")
         
         return {
             "status": "success",
@@ -241,7 +215,8 @@ def process_uploaded_book_sync(uploaded_book_id):
 def process_uploaded_book(self, uploaded_book_id):
     """
     Celery async version: Process uploaded PDF in background
-    Enhanced with subject-aware extraction and better chunking
+    Enhanced with subject-aware extraction and ChromaDB with proper labeling
+    Storage format: Class X, Subject: Y, Chapter: Z
     (Use this when Celery is running, otherwise use process_uploaded_book_sync)
     """
     logger.info(f"Processing upload ID: {uploaded_book_id} (ASYNC)")
@@ -254,7 +229,7 @@ def process_uploaded_book(self, uploaded_book_id):
         
         # Extract text from PDF with subject-aware processing
         logger.info(f"Extracting text from: {book_obj.file.path}")
-        logger.info(f"📚 Subject: {book_obj.subject}, Standard: {book_obj.standard}, Chapter: {book_obj.chapter}")
+        logger.info(f"📚 Class: {book_obj.standard}, Subject: {book_obj.subject}, Chapter: {book_obj.chapter}")
         pages_data = extract_text_from_pdf(book_obj.file.path, subject=book_obj.subject)
         
         if not pages_data:
@@ -266,47 +241,44 @@ def process_uploaded_book(self, uploaded_book_id):
         if not chunks:
             raise ValueError("No chunks created from PDF")
         
-        # Store in ChromaDB in batches
-        batch_size = 100
-        total_added = 0
+        # Store in ChromaDB using the enhanced manager
+        logger.info(f"📝 Storing {len(chunks)} chunks in ChromaDB with labels:")
+        logger.info(f"   Class: {book_obj.standard}")
+        logger.info(f"   Subject: {book_obj.subject}")
+        logger.info(f"   Chapter: {book_obj.chapter}")
         
-        for i in range(0, len(chunks), batch_size):
-            batch = chunks[i:i + batch_size]
-            
-            ids = [c["id"] for c in batch]
-            documents = [c["text"] for c in batch]
-            metadatas = [c["metadata"] for c in batch]
-            
-            # Generate embeddings
-            embeddings = get_embeddings(documents)
-            
-            # Add to ChromaDB
-            collection.add(
-                ids=ids,
-                documents=documents,
-                embeddings=embeddings,
-                metadatas=metadatas
-            )
-            
-            total_added += len(batch)
-            logger.info(f"Added batch {i//batch_size + 1}: {len(batch)} chunks")
-            
-            # Update progress
-            progress = int((total_added / len(chunks)) * 100)
-            self.update_state(
-                state='PROGRESS',
-                meta={'current': total_added, 'total': len(chunks), 'percent': progress}
-            )
+        # Update progress
+        self.update_state(
+            state='PROGRESS',
+            meta={'current': 0, 'total': len(chunks), 'percent': 0, 'status': 'Storing in ChromaDB'}
+        )
         
-        # Persist ChromaDB changes to disk
-        # chroma_client.persist()  # Automatic with persist_directory
+        total_added = chroma_manager.add_document_chunks(
+            chunks=chunks,
+            standard=book_obj.standard,
+            subject=book_obj.subject,
+            chapter=book_obj.chapter,
+            source_file=book_obj.original_filename,
+            batch_size=100
+        )
+        
+        # Update progress
+        self.update_state(
+            state='PROGRESS',
+            meta={'current': total_added, 'total': len(chunks), 'percent': 100}
+        )
         
         # Mark as complete
         book_obj.status = 'done'
         book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages"
         book_obj.save()
         
-        logger.info(f"Successfully processed upload {uploaded_book_id}: {total_added} chunks")
+        logger.info(f"✅ Successfully processed upload {uploaded_book_id}: {total_added} chunks")
+        
+        # Log ChromaDB stats
+        stats = chroma_manager.get_stats()
+        logger.info(f"📊 ChromaDB Stats: {stats['total_documents']} total documents, "
+                   f"{stats['total_classes']} classes")
         
         return {
             "status": "success",

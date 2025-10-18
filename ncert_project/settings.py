@@ -17,8 +17,8 @@ from dotenv import load_dotenv
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Load .env file from ncert_project directory
-env_path = Path(__file__).resolve().parent / '.env'
+# Load .env file from project root directory (where manage.py is)
+env_path = BASE_DIR / '.env'
 load_dotenv(dotenv_path=env_path)
 
 
@@ -84,12 +84,29 @@ WSGI_APPLICATION = 'ncert_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# MongoDB Configuration using djongo (commented out - see below)
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'djongo',
+#         'NAME': os.getenv('MONGODB_DB_NAME', 'ncert_db'),
+#         'CLIENT': {
+#             'host': os.getenv('MONGODB_URI', 'mongodb://localhost:27017/'),
+#         }
+#     }
+# }
+
+# Using PyMongo directly for user/admin data
+# Django models will be stored in MongoDB via custom backend
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': str(BASE_DIR / 'db.sqlite3'),
     }
 }
+
+# MongoDB connection settings for direct PyMongo usage
+MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
+MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'ncert_db')
 
 
 AUTH_USER_MODEL = "accounts.CustomUser"

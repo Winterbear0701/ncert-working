@@ -162,144 +162,209 @@ def ask_chatbot(request):
     sources = []
     used_cache = False
     
-    # Check if this is a simple greeting/response (no need for RAG)
-    if not is_educational_query(question):
-        # Simple response - use AI directly
-        logger.info("Simple query detected, responding directly")
-        pass  # Will generate answer below
-    else:
-        # Educational query - check caches first
-        query_hash = get_query_hash(question)
-        
-        # TIER 1: Check Permanent Memory (user-specific)
-        try:
-            perm_memory = PermanentMemory.objects.filter(
-                student=request.user,
-                keywords__icontains=question[:50]
-            ).first()
-            
-            if perm_memory:
-                answer = perm_memory.answer
-                images = perm_memory.images or []
-                sources = perm_memory.sources or []
-                perm_memory.access_count += 1
-                perm_memory.save()
-                used_cache = True
-                logger.info("✅ Answer from permanent memory")
-        except Exception as e:
-            logger.error(f"Error checking permanent memory: {e}")
-        
-        # TIER 2: Check 10-day Cache (global)
-        if not answer:
-            try:
-                cache_entry = ChatCache.get_active_cache(query_hash)
-                if cache_entry:
-                    answer = cache_entry.answer
-                    images = cache_entry.images or []
-                    sources = cache_entry.sources or []
-                    used_cache = True
-                    logger.info(f"✅ Answer from cache (hit count: {cache_entry.hit_count})")
-            except Exception as e:
-                logger.error(f"Error checking cache: {e}")
+    # Get student's standard early for use throughout
+    standard = getattr(request.user, 'standard', None)
     
-    # TIER 3: If no cache hit, perform full RAG + Web Scraping
+    # ALWAYS search RAG first - no direct AI responses to prevent hallucination
+    # Educational query - check caches first
+    query_hash = get_query_hash(question)
+    
+    # TIER 1: Check Permanent Memory (user-specific)
+    try:
+        perm_memory = PermanentMemory.objects.filter(
+            student=request.user,
+            keywords__icontains=question[:50]
+        ).first()
+        
+        if perm_memory:
+            answer = perm_memory.answer
+            images = perm_memory.images or []
+            sources = perm_memory.sources or []
+            perm_memory.access_count += 1
+            perm_memory.save()
+            used_cache = True
+            logger.info("✅ Answer from permanent memory")
+    except Exception as e:
+        logger.error(f"Error checking permanent memory: {e}")
+    
+    # TIER 2: Check 10-day Cache (global)
+    if not answer:
+        try:
+            cache_entry = ChatCache.get_active_cache(query_hash)
+            if cache_entry:
+                answer = cache_entry.answer
+                images = cache_entry.images or []
+                sources = cache_entry.sources or []
+                used_cache = True
+                logger.info(f"✅ Answer from cache (hit count: {cache_entry.hit_count})")
+        except Exception as e:
+            logger.error(f"Error checking cache: {e}")
+    
+    # TIER 3: If no cache hit, ALWAYS perform RAG search (prevent hallucination)
     rag_context = ""
     context_found = False
     web_context = ""
     
-    if not used_cache and is_educational_query(question):
-        # 3a. ChromaDB RAG Retrieval
-        where_filter = {}
+    if not used_cache:
+        # 3a. ChromaDB RAG Retrieval (PRIMARY SOURCE - ALWAYS SEARCH FIRST!)
         try:
-            collection = RAG_SYSTEM["collection"]
-            if collection is None:
-                raise RuntimeError("ChromaDB collection is not available.")
-                
-            # Get student's standard for filtering
-            student_standard = getattr(request.user, 'standard', None)
-            if student_standard:
-                where_filter = {"standard": str(student_standard)}
+            from ncert_project.chromadb_utils import get_chromadb_manager
+            chroma_manager = get_chromadb_manager()
             
-            # Generate query embedding
-            query_embedding = get_embedding(question)
-            
-            # Retrieve relevant chunks from ChromaDB
-            logger.info(f"Querying ChromaDB for: {question[:50]}...")
-            results = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=5,  # Get top 5 most relevant chunks
-                where=where_filter if where_filter else None
+            # Query ChromaDB with MAXIMUM results to get comprehensive content
+            logger.info(f"🔍 Querying ChromaDB (RAG) for: {question[:50]}...")
+            results = chroma_manager.query_by_class_subject_chapter(
+                query_text=question,
+                class_num=str(standard) if standard else None,
+                n_results=20  # Get maximum relevant chunks for comprehensive answer
             )
             
-            # Extract and format context
+            # Extract and format context from ChromaDB
             if results and results.get("documents") and results["documents"][0]:
                 documents = results["documents"][0]
                 metadatas = results.get("metadatas", [[]])[0]
+                distances = results.get("distances", [[]])[0]
                 context_parts = []
                 
                 for i, doc in enumerate(documents):
                     meta = metadatas[i] if i < len(metadatas) else {}
-                    source_ref = (f"[Std {meta.get('standard', '?')}, {meta.get('subject', '?')}, "
-                                 f"Ch {meta.get('chapter', '?')}, Page {meta.get('page', '?')}]")
+                    similarity = 1 - distances[i] if i < len(distances) else 0
+                    
+                    # Format source reference with proper labels
+                    source_ref = (f"[{meta.get('class', 'Class ?')}, "
+                                 f"{meta.get('subject', 'Unknown Subject')}, "
+                                 f"{meta.get('chapter', 'Chapter ?')}, "
+                                 f"Page {meta.get('page', '?')}] "
+                                 f"(Relevance: {similarity:.2f})")
                     context_parts.append(f"{source_ref}\n{doc}")
                     
-                    # Add source to sources list
+                    # Add source to sources list for display
                     sources.append({
-                        'name': f"{meta.get('subject', 'NCERT')} - Chapter {meta.get('chapter', '?')}",
-                        'type': 'pdf',
-                        'page': meta.get('page')
+                        'name': f"{meta.get('subject', 'NCERT')} - {meta.get('chapter', 'Chapter')}",
+                        'type': 'ncert_textbook',
+                        'class': meta.get('class'),
+                        'chapter': meta.get('chapter'),
+                        'page': meta.get('page'),
+                        'relevance': f"{similarity:.0%}"
                     })
                 
                 rag_context = "\n\n".join(context_parts)
                 context_found = True
-                logger.info(f"Found {len(documents)} relevant chunks from ChromaDB")
+                logger.info(f"✅ Found {len(documents)} relevant chunks from NCERT textbooks (ChromaDB)")
+            else:
+                logger.info("⚠️  No relevant content found in ChromaDB")
                 
-        except RuntimeError as e:
-            logger.error(f"RAG System Unavailable: {e}")
         except Exception as e:
-            logger.error(f"Error during RAG retrieval: {e}")
+            logger.error(f"❌ Error during ChromaDB RAG retrieval: {e}")
+            import traceback
+            traceback.print_exc()
         
-        # 3b. Web Scraping for Additional Context
-        try:
-            logger.info("Performing web scraping...")
-            web_data = scrape_multiple_sources(question, include_images=True)
-            
-            if web_data['success']:
-                web_context = web_data['content']
-                images.extend(web_data['images'])
-                sources.extend(web_data['sources'])
-                logger.info(f"Web scraping added {len(web_data['images'])} images, {len(web_data['sources'])} sources")
-        except Exception as e:
-            logger.error(f"Web scraping error: {e}")
+        # 3b. Web Scraping for Images ONLY (no text content)
+        # Only scrape images to supplement RAG content
+        if rag_context:
+            try:
+                logger.info("🌐 Web scraping for images only...")
+                web_data = scrape_multiple_sources(question, include_images=True)
+                
+                if web_data['success'] and web_data.get('images'):
+                    # Add ONLY images, NOT text content (prevent hallucination)
+                    images.extend(web_data['images'])
+                    logger.info(f"✅ Web scraping added {len(web_data['images'])} images")
+                        
+            except Exception as e:
+                logger.error(f"⚠️  Web scraping error: {e}")
+        else:
+            # NO RAG CONTENT FOUND - Return "no content" message instead of hallucinating
+            logger.warning("❌ No RAG content found - returning 'no content' message")
+            return JsonResponse({
+                "status": "success",
+                "answer": ("I apologize, but I couldn't find relevant content about this topic in the NCERT textbooks. "
+                          "This question might be outside the current curriculum, or the content hasn't been added to my database yet. "
+                          "\n\n**Suggestions:**\n"
+                          "- Try rephrasing your question\n"
+                          "- Ask about topics from your NCERT textbooks\n"
+                          "- Contact your teacher for topics outside the textbook"),
+                "images": [],
+                "sources": [],
+                "difficulty_level": "unknown",
+                "used_cache": False,
+                "rag_used": False,
+                "web_used": False,
+                "context_found": False,
+                "student_class": str(standard) if standard else None,
+                "content_source": "no_content_found"
+            })
     
     
     # 5. Generate Answer with AI (if not from cache)
     if not answer:
-        # Build prompts with difficulty adaptation
+        # Build prompts with age-appropriate formatting
         age = getattr(request.user, 'age', 12)
-        standard = getattr(request.user, 'standard', 'middle school')
+        # Use standard defined earlier, fallback to 'middle school' if None
+        if not standard:
+            standard = 'middle school'
         
-        # Base system prompt
-        base_system = (
-            f"You are a helpful, friendly AI tutor for a {age}-year-old student in standard {standard}. "
-            f"Answer questions clearly and engagingly. Be encouraging and make learning fun."
-        )
+        # Age-appropriate system prompt
+        if age <= 10:  # Class 5-6
+            base_system = (
+                f"You are a friendly, patient teacher for a {age}-year-old student in Class {standard}. "
+                f"Explain things in very simple language with fun examples. Use short sentences. "
+                f"Make learning exciting! Use emojis when appropriate. Break complex ideas into simple steps."
+            )
+        elif age <= 13:  # Class 7-8
+            base_system = (
+                f"You are a helpful tutor for a {age}-year-old student in Class {standard}. "
+                f"Explain clearly with relevant examples. Use simple but proper language. "
+                f"Make connections to everyday life. Be encouraging and supportive."
+            )
+        else:  # Class 9-10
+            base_system = (
+                f"You are an experienced teacher for a {age}-year-old student in Class {standard}. "
+                f"Provide detailed explanations with examples and applications. "
+                f"Use proper academic language while keeping it engaging."
+            )
         
-        # Build context string
+        # Build context string - PRIORITIZE NCERT CONTENT!
         full_context = ""
         if rag_context:
-            full_context += f"\n\n**NCERT Textbook Context:**\n{rag_context}"
+            full_context += f"\n\n📚 **FROM YOUR NCERT TEXTBOOK:**\n{rag_context}\n\n"
+            full_context += "⚠️ **IMPORTANT:** Base your answer primarily on the NCERT textbook content above. "
+            full_context += "This is the official curriculum content the student is learning."
         if web_context:
-            full_context += f"\n\n**Additional Educational Content:**\n{web_context}"
+            full_context += f"\n\n**Additional Reference:**\n{web_context}"
         
-        # User prompt
+        # User prompt with clear instructions
         if full_context:
-            user_prompt = f"Question: {question}{full_context}\n\nPlease provide a comprehensive answer using the above context."
+            user_prompt = (
+                f"Student's Question: {question}\n\n"
+                f"{full_context}\n\n"
+                f"Instructions:\n"
+                f"1. Answer based MAINLY on the NCERT textbook content\n"
+                f"2. Make it appropriate for Class {standard}\n"
+                f"3. Use simple, clear language\n"
+                f"4. Include examples from the textbook if available\n"
+                f"5. Keep it engaging and encouraging"
+            )
         else:
             user_prompt = f"Question: {question}"
         
         # Adjust for difficulty level
         system_prompt = adjust_prompt_for_difficulty(base_system, difficulty_level, user_context=user_prompt[:500])
+        
+        # Get conversation history for multi-turn context (last 5 messages)
+        conversation_history = []
+        try:
+            recent_chats = ChatHistory.objects.filter(student=request.user).order_by('-created_at')[:5]
+            # Reverse to get chronological order (oldest first)
+            for chat in reversed(list(recent_chats)):
+                conversation_history.append({
+                    "question": chat.question,
+                    "answer": chat.answer
+                })
+            if conversation_history:
+                logger.info(f"📜 Including {len(conversation_history)} previous messages for context")
+        except Exception as e:
+            logger.error(f"Error fetching conversation history: {e}")
         
         # Generate with AI
         model_used = model_choice
@@ -307,17 +372,25 @@ def ask_chatbot(request):
         # Try OpenAI
         if model_choice == "openai" or (model_choice != "gemini" and openai.api_key):
             try:
+                # Build messages with conversation history
+                messages = [{"role": "system", "content": system_prompt}]
+                
+                # Add conversation history
+                for hist in conversation_history:
+                    messages.append({"role": "user", "content": hist["question"]})
+                    messages.append({"role": "assistant", "content": hist["answer"]})
+                
+                # Add current question
+                messages.append({"role": "user", "content": user_prompt})
+                
                 response = openai.chat.completions.create(
                     model=RAG_SYSTEM["openai_model"],
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
-                    ],
+                    messages=messages,
                     temperature=0.7,
                     max_tokens=800  # Increased for detailed answers
                 )
                 answer = response.choices[0].message.content
-                logger.info(f"OpenAI response generated")
+                logger.info(f"OpenAI response generated with conversation context")
                 
             except Exception as openai_error:
                 logger.error(f"OpenAI error: {str(openai_error)}")
@@ -327,11 +400,20 @@ def ask_chatbot(request):
         if (model_choice == "gemini" or not answer) and os.getenv("GEMINI_API_KEY"):
             try:
                 model = genai.GenerativeModel(RAG_SYSTEM["gemini_model"])
-                full_prompt = f"{system_prompt}\n\n{user_prompt}"
+                
+                # Build conversation context for Gemini
+                conversation_context = ""
+                if conversation_history:
+                    conversation_context = "\n\n**Previous Conversation:**\n"
+                    for hist in conversation_history:
+                        conversation_context += f"Student: {hist['question']}\nYou: {hist['answer']}\n\n"
+                    conversation_context += "**Current Question:**\n"
+                
+                full_prompt = f"{system_prompt}\n\n{conversation_context}{user_prompt}"
                 response = model.generate_content(full_prompt)
                 answer = response.text
                 model_used = "gemini"
-                logger.info(f"Gemini response generated")
+                logger.info(f"Gemini response generated with conversation context")
                 
             except Exception as gemini_error:
                 logger.error(f"Gemini error: {str(gemini_error)}")
@@ -346,6 +428,45 @@ def ask_chatbot(request):
         # Format response based on difficulty
         answer = format_response_by_difficulty(answer, difficulty_level)
         
+        # 5b. Generate Image if no images found and it's an educational query
+        if not images and is_educational_query(question):
+            try:
+                logger.info("🎨 No images found, generating image with AI...")
+                
+                # Create image generation prompt based on the question
+                if age <= 10:
+                    image_prompt = f"Create a colorful, child-friendly illustration for: {question}. Make it fun and educational for a {age}-year-old."
+                else:
+                    image_prompt = f"Create an educational diagram or illustration explaining: {question}. Make it clear and informative for a Class {standard} student."
+                
+                # Try to generate image with DALL-E (OpenAI)
+                if openai.api_key:
+                    try:
+                        response = openai.images.generate(
+                            model="dall-e-3",
+                            prompt=image_prompt[:1000],  # Limit prompt length
+                            size="1024x1024",
+                            quality="standard",
+                            n=1
+                        )
+                        generated_image_url = response.data[0].url
+                        images.append({
+                            'url': generated_image_url,
+                            'type': 'ai_generated',
+                            'source': 'DALL-E 3'
+                        })
+                        logger.info("✅ Successfully generated image with DALL-E")
+                        
+                    except Exception as dalle_error:
+                        logger.error(f"DALL-E image generation failed: {str(dalle_error)}")
+                        
+                        # Note: Gemini image generation not yet supported in this API
+                        # Add a note to the answer instead
+                        answer += "\n\n💡 *Image could not be generated. Try searching for '{question}' images online for visual reference.*"
+                        
+            except Exception as e:
+                logger.error(f"Image generation error: {e}")
+        
         # Cache the answer (10-day cache)
         if is_educational_query(question):
             try:
@@ -357,7 +478,7 @@ def ask_chatbot(request):
                     sources=sources if sources else None,
                     difficulty_level=difficulty_level
                 )
-                logger.info("Answer cached for future use")
+                logger.info("✅ Answer cached for future use")
             except Exception as e:
                 logger.error(f"Failed to cache answer: {e}")
 
@@ -392,7 +513,7 @@ def ask_chatbot(request):
     except Exception as db_error:
         logger.error(f"Failed to save chat history: {db_error}")
     
-    # 8. Return Enhanced Response
+    # 8. Return Enhanced Response with metadata
     return JsonResponse({
         "status": "success",
         "answer": answer,
@@ -400,7 +521,11 @@ def ask_chatbot(request):
         "sources": sources[:10] if sources else [],  # Limit to 10 sources
         "difficulty_level": difficulty_level,
         "used_cache": used_cache,
-        "context_found": context_found or bool(rag_context or web_context)
+        "rag_used": bool(rag_context),  # Did we use NCERT textbook content?
+        "web_used": bool(web_context),  # Did we use web scraping?
+        "context_found": context_found or bool(rag_context or web_context),
+        "student_class": str(standard) if standard else None,
+        "content_source": "ncert_textbook" if rag_context else ("web" if web_context else "ai_only")
     })
 
 # --- Utility and Standard Views ---

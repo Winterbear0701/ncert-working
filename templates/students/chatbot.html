@@ -62,11 +62,124 @@
                             <i :class="message.isUser ? 'fas fa-user' : 'fas fa-robot'"></i>
                         </div>
                     </div>
-                    <div class="flex-1">
+                    <div class="flex-1 max-w-3xl">
                         <div class="rounded-lg shadow p-4"
                              :class="message.isUser ? 'bg-purple-100' : 'bg-white'">
-                            <p class="text-gray-800 whitespace-pre-wrap" x-html="message.text"></p>
+                            
+                            <!-- Text Content with Markdown rendering -->
+                            <div class="prose prose-sm max-w-none text-gray-800 markdown-content" 
+                                 x-html="message.formattedText || message.text"></div>
+                            
+                            <!-- Images Section (if not user message) -->
+                            <template x-if="!message.isUser && message.images && message.images.length > 0">
+                                <div class="mt-4 space-y-3">
+                                    <div class="flex items-center text-sm font-semibold text-gray-700 border-t pt-3">
+                                        <i class="fas fa-images mr-2 text-blue-500"></i>
+                                        <span>Related Images</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <template x-for="(image, imgIndex) in message.images.slice(0, 4)" :key="imgIndex">
+                                            <div class="relative group cursor-pointer" 
+                                                 @click="openImageModal(image)">
+                                                <img :src="image.url" 
+                                                     :alt="'Image ' + (imgIndex + 1)"
+                                                     class="w-full h-32 object-cover rounded-lg border-2 border-gray-200 hover:border-blue-400 transition">
+                                                <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition rounded-lg flex items-center justify-center">
+                                                    <i class="fas fa-search-plus text-white opacity-0 group-hover:opacity-100 transition text-xl"></i>
+                                                </div>
+                                                <!-- Image source badge -->
+                                                <template x-if="image.type">
+                                                    <div class="absolute top-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                                                        <span x-text="image.type === 'ai_generated' ? '🎨 AI' : '🌐 Web'"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <!-- Sources/References Section -->
+                            <template x-if="!message.isUser && message.sources && message.sources.length > 0">
+                                <div class="mt-4 space-y-2">
+                                    <div class="flex items-center text-sm font-semibold text-gray-700 border-t pt-3">
+                                        <i class="fas fa-book-open mr-2 text-green-500"></i>
+                                        <span>Sources & References</span>
+                                    </div>
+                                    <div class="space-y-2">
+                                        <template x-for="(source, srcIndex) in message.sources" :key="srcIndex">
+                                            <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm">
+                                                <!-- NCERT Textbook Source -->
+                                                <template x-if="source.type === 'ncert_textbook'">
+                                                    <div class="flex items-start space-x-2">
+                                                        <div class="flex-shrink-0">
+                                                            <span class="inline-block px-2 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded">
+                                                                📚 NCERT
+                                                            </span>
+                                                        </div>
+                                                        <div class="flex-1">
+                                                            <p class="font-medium text-gray-800" x-text="source.name"></p>
+                                                            <p class="text-xs text-gray-600 mt-1">
+                                                                <span x-text="source.class"></span>
+                                                                <template x-if="source.chapter">
+                                                                    <span> • <span x-text="source.chapter"></span></span>
+                                                                </template>
+                                                                <template x-if="source.page">
+                                                                    <span> • Page <span x-text="source.page"></span></span>
+                                                                </template>
+                                                                <template x-if="source.relevance">
+                                                                    <span class="ml-2 text-blue-600 font-semibold">
+                                                                        ✓ <span x-text="source.relevance"></span> match
+                                                                    </span>
+                                                                </template>
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                                
+                                                <!-- Web Source -->
+                                                <template x-if="source.type !== 'ncert_textbook'">
+                                                    <div class="flex items-start space-x-2">
+                                                        <div class="flex-shrink-0">
+                                                            <span class="inline-block px-2 py-1 bg-blue-100 text-blue-800 text-xs font-semibold rounded">
+                                                                🌐 Web
+                                                            </span>
+                                                        </div>
+                                                        <div class="flex-1">
+                                                            <template x-if="source.url">
+                                                                <a :href="source.url" 
+                                                                   target="_blank"
+                                                                   class="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                                                                   x-text="source.name"></a>
+                                                            </template>
+                                                            <template x-if="!source.url">
+                                                                <p class="font-medium text-gray-800" x-text="source.name"></p>
+                                                            </template>
+                                                            <template x-if="source.url">
+                                                                <p class="text-xs text-gray-500 mt-1 truncate" x-text="source.url"></p>
+                                                            </template>
+                                                        </div>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                            
+                            <!-- Content Source Badge -->
+                            <template x-if="!message.isUser && message.contentSource">
+                                <div class="mt-3 flex items-center text-xs text-gray-500">
+                                    <template x-if="message.contentSource === 'ncert_textbook'">
+                                        <span class="flex items-center">
+                                            <i class="fas fa-check-circle text-green-500 mr-1"></i>
+                                            Based on NCERT textbook content
+                                        </span>
+                                    </template>
+                                </div>
+                            </template>
                         </div>
+                        
                         <p class="text-xs text-gray-500 mt-1" 
                            :class="message.isUser ? 'text-right' : 'text-left'">
                             <span x-text="message.isUser ? 'You' : 'AI Tutor'"></span> • 
@@ -118,7 +231,86 @@
 
 {% endblock %}
 
+{% block extra_css %}
+<style>
+/* Markdown Content Styling */
+.markdown-content h1, .markdown-content h2, .markdown-content h3, 
+.markdown-content h4, .markdown-content h5, .markdown-content h6 {
+    font-weight: 700;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    color: #1f2937;
+}
+
+.markdown-content h1 { font-size: 1.5rem; }
+.markdown-content h2 { font-size: 1.35rem; }
+.markdown-content h3 { font-size: 1.2rem; }
+.markdown-content h4 { font-size: 1.1rem; }
+
+.markdown-content strong {
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.markdown-content em {
+    font-style: italic;
+}
+
+.markdown-content p {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+}
+
+.markdown-content ul, .markdown-content ol {
+    margin-left: 1.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.markdown-content li {
+    margin-bottom: 0.25rem;
+}
+
+.markdown-content code {
+    background-color: #f3f4f6;
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: monospace;
+    font-size: 0.875em;
+}
+
+.markdown-content blockquote {
+    border-left: 4px solid #3b82f6;
+    padding-left: 1rem;
+    margin: 1rem 0;
+    color: #4b5563;
+    font-style: italic;
+}
+
+/* Image Modal */
+.image-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.image-modal img {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+}
+</style>
+{% endblock %}
+
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
 function chatbot() {
     return {
@@ -126,6 +318,52 @@ function chatbot() {
         currentMessage: '',
         isTyping: false,
         selectedModel: 'openai',
+        imageModal: null,
+        
+        // Format Markdown to HTML
+        formatMarkdown(text) {
+            if (!text) return '';
+            
+            // Convert markdown to HTML using marked.js
+            try {
+                // Configure marked for better formatting
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true
+                });
+                return marked.parse(text);
+            } catch (e) {
+                // Fallback: Basic markdown conversion
+                return text
+                    .replace(/### (.*?)(\n|$)/g, '<h3>$1</h3>')
+                    .replace(/## (.*?)(\n|$)/g, '<h2>$1</h2>')
+                    .replace(/# (.*?)(\n|$)/g, '<h1>$1</h1>')
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n\n/g, '</p><p>')
+                    .replace(/\n/g, '<br>');
+            }
+        },
+        
+        // Open image in modal
+        openImageModal(image) {
+            const modal = document.createElement('div');
+            modal.className = 'image-modal';
+            modal.innerHTML = `
+                <div class="relative">
+                    <img src="${image.url}" alt="Full size image">
+                    <button onclick="this.closest('.image-modal').remove()" 
+                            class="absolute top-4 right-4 bg-white text-gray-800 rounded-full w-10 h-10 flex items-center justify-center hover:bg-gray-200 transition">
+                        <i class="fas fa-times"></i>
+                    </button>
+                    ${image.source ? `<div class="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white px-3 py-2 rounded">Source: ${image.source}</div>` : ''}
+                </div>
+            `;
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) modal.remove();
+            });
+            document.body.appendChild(modal);
+        },
         
         sendMessage() {
             if (!this.currentMessage.trim()) return;
@@ -136,6 +374,7 @@ function chatbot() {
             // Add user message
             this.messages.push({
                 text: userMessage,
+                formattedText: userMessage,
                 isUser: true,
                 time: now
             });
@@ -174,14 +413,39 @@ function chatbot() {
                 
                 if (data.status === 'success') {
                     const aiTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                    this.messages.push({
+                    
+                    // Format the answer with markdown
+                    const formattedAnswer = this.formatMarkdown(data.answer);
+                    
+                    // Create message object with all data
+                    const message = {
                         text: data.answer,
+                        formattedText: formattedAnswer,
                         isUser: false,
-                        time: aiTime
+                        time: aiTime,
+                        images: data.images || [],
+                        sources: data.sources || [],
+                        contentSource: data.content_source,
+                        ragUsed: data.rag_used || false,
+                        difficultyLevel: data.difficulty_level
+                    };
+                    
+                    this.messages.push(message);
+                    
+                    // Log for debugging
+                    console.log('Response data:', {
+                        hasImages: data.images && data.images.length > 0,
+                        imageCount: data.images ? data.images.length : 0,
+                        hasSources: data.sources && data.sources.length > 0,
+                        sourceCount: data.sources ? data.sources.length : 0,
+                        contentSource: data.content_source,
+                        ragUsed: data.rag_used
                     });
+                    
                 } else {
                     this.messages.push({
-                        text: 'Sorry, something went wrong. Please try again.',
+                        text: data.error || 'Sorry, something went wrong. Please try again.',
+                        formattedText: data.error || 'Sorry, something went wrong. Please try again.',
                         isUser: false,
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                     });
@@ -198,6 +462,7 @@ function chatbot() {
                 this.isTyping = false;
                 this.messages.push({
                     text: 'Network error. Please check your connection and try again.',
+                    formattedText: 'Network error. Please check your connection and try again.',
                     isUser: false,
                     time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 });
