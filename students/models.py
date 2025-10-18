@@ -113,3 +113,174 @@ class PDFImage(models.Model):
 
     class Meta:
         ordering = ['upload', 'page_number']
+
+
+# ==================== QUIZ SYSTEM MODELS ====================
+
+class QuizChapter(models.Model):
+    """
+    Represents a chapter with quiz questions
+    Auto-generated when book is uploaded
+    """
+    chapter_id = models.CharField(max_length=255, unique=True, db_index=True)  # e.g., "class_5_math_chapter_1"
+    class_number = models.CharField(max_length=10)
+    subject = models.CharField(max_length=100)
+    chapter_number = models.IntegerField()
+    chapter_name = models.CharField(max_length=255)
+    chapter_order = models.IntegerField(help_text="Sequential order for unlocking")
+    is_active = models.BooleanField(default=True)
+    total_questions = models.IntegerField(default=10)
+    passing_percentage = models.IntegerField(default=70)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.class_number} - {self.subject} - {self.chapter_name}"
+    
+    class Meta:
+        ordering = ['class_number', 'subject', 'chapter_order']
+        indexes = [
+            models.Index(fields=['chapter_id']),
+            models.Index(fields=['class_number', 'subject', 'chapter_order']),
+        ]
+
+
+class QuizQuestion(models.Model):
+    """
+    Quiz questions with multiple variants for re-attempts
+    Generated from ChromaDB RAG content
+    """
+    DIFFICULTY_CHOICES = [
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard'),
+    ]
+    
+    chapter = models.ForeignKey(QuizChapter, on_delete=models.CASCADE, related_name='questions')
+    question_number = models.IntegerField()  # 1-10
+    topic = models.CharField(max_length=255)  # e.g., "Triangles", "Photosynthesis"
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_CHOICES, default='medium')
+    rag_context = models.TextField(help_text="ChromaDB content used to generate this question")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.chapter.chapter_name} - Q{self.question_number} - {self.topic}"
+    
+    class Meta:
+        ordering = ['chapter', 'question_number']
+        unique_together = ['chapter', 'question_number']
+
+
+class QuestionVariant(models.Model):
+    """
+    Multiple variants of the same question for re-attempts
+    Same concept, different wording
+    """
+    question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE, related_name='variants')
+    variant_number = models.IntegerField()  # 1, 2, 3...
+    question_text = models.TextField()
+    option_a = models.CharField(max_length=500)
+    option_b = models.CharField(max_length=500)
+    option_c = models.CharField(max_length=500)
+    option_d = models.CharField(max_length=500)
+    correct_answer = models.CharField(max_length=1, choices=[('A', 'A'), ('B', 'B'), ('C', 'C'), ('D', 'D')])
+    explanation = models.TextField(help_text="Why this answer is correct")
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.question} - Variant {self.variant_number}"
+    
+    class Meta:
+        ordering = ['question', 'variant_number']
+        unique_together = ['question', 'variant_number']
+
+
+class StudentChapterProgress(models.Model):
+    """
+    Tracks student's progress through chapters
+    Manages progressive unlocking
+    """
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='chapter_progress')
+    chapter = models.ForeignKey(QuizChapter, on_delete=models.CASCADE)
+    is_unlocked = models.BooleanField(default=False)
+    is_completed = models.BooleanField(default=False)
+    best_score = models.IntegerField(default=0)
+    total_attempts = models.IntegerField(default=0)
+    last_attempt_date = models.DateTimeField(null=True, blank=True)
+    unlocked_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.student.email} - {self.chapter.chapter_name} - Score: {self.best_score}%"
+    
+    class Meta:
+        unique_together = ['student', 'chapter']
+        ordering = ['student', 'chapter__chapter_order']
+
+
+class QuizAttempt(models.Model):
+    """
+    Records each quiz attempt by a student
+    Stores all answers and verification results
+    """
+    STATUS_CHOICES = [
+        ('in_progress', 'In Progress'),
+        ('submitted', 'Submitted'),
+        ('verified', 'Verified'),
+    ]
+    
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='quiz_attempts')
+    chapter = models.ForeignKey(QuizChapter, on_delete=models.CASCADE)
+    attempt_number = models.IntegerField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='in_progress')
+    current_question_number = models.IntegerField(default=1)
+    
+    # Results
+    total_questions = models.IntegerField(default=10)
+    correct_answers = models.IntegerField(default=0)
+    score_percentage = models.IntegerField(default=0)
+    is_passed = models.BooleanField(default=False)
+    
+    # Timing
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    total_time_seconds = models.IntegerField(default=0)
+    
+    # Topic performance (JSON field for heatmap)
+    topic_performance = models.JSONField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.student.email} - {self.chapter.chapter_name} - Attempt {self.attempt_number}"
+    
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['student', 'chapter', '-started_at']),
+        ]
+
+
+class QuizAnswer(models.Model):
+    """
+    Individual answer for each question in a quiz attempt
+    """
+    attempt = models.ForeignKey(QuizAttempt, on_delete=models.CASCADE, related_name='answers')
+    question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE)
+    variant_used = models.ForeignKey(QuestionVariant, on_delete=models.CASCADE)
+    
+    # Student's response
+    selected_answer = models.CharField(max_length=1, choices=[('A', 'A'), ('B', 'B'), ('C', 'C'), ('D', 'D')])
+    is_correct = models.BooleanField(default=False)
+    time_taken_seconds = models.IntegerField(default=0)
+    
+    # RAG Verification
+    verification_status = models.CharField(max_length=50, default='pending')  # pending, verified_by_rag, no_rag_content
+    ai_explanation = models.TextField(null=True, blank=True)
+    rag_confidence = models.FloatField(null=True, blank=True)  # 0.0 to 1.0
+    
+    answered_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.attempt} - Q{self.question.question_number} - {'✓' if self.is_correct else '✗'}"
+    
+    class Meta:
+        ordering = ['attempt', 'question__question_number']
+        unique_together = ['attempt', 'question']
