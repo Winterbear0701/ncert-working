@@ -248,6 +248,9 @@ class QuizAttempt(models.Model):
     # Topic performance (JSON field for heatmap)
     topic_performance = models.JSONField(null=True, blank=True)
     
+    # AI Feedback
+    feedback_message = models.TextField(null=True, blank=True, help_text="AI-generated feedback on topic performance")
+    
     def __str__(self):
         return f"{self.student.email} - {self.chapter.chapter_name} - Attempt {self.attempt_number}"
     

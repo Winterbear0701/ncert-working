@@ -119,6 +119,24 @@
     </div>
     {% endif %}
 
+    <!-- AI Feedback Message -->
+    {% if attempt.feedback_message %}
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-2xl font-bold text-gray-900 mb-4 flex items-center">
+            <svg class="w-7 h-7 mr-2 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            AI Learning Recommendations
+        </h2>
+        
+        <div class="{% if attempt.score >= 80 %}bg-gradient-to-r from-green-50 to-emerald-50 border-l-4 border-green-500{% elif attempt.score >= 60 %}bg-gradient-to-r from-yellow-50 to-amber-50 border-l-4 border-yellow-500{% else %}bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500{% endif %} p-5 rounded-lg">
+            <p class="text-lg text-gray-800 leading-relaxed">
+                {{ attempt.feedback_message }}
+            </p>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- Detailed Question Review -->
     <div class="bg-white rounded-lg shadow-md p-6 mb-8">
         <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center">

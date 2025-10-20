@@ -261,6 +261,28 @@ def submit_quiz(request, attempt_id):
             perf = topic_performance[topic]
             perf['percentage'] = int((perf['correct'] / perf['total']) * 100)
         
+        # Generate topic-based feedback
+        strong_topics = []
+        weak_topics = []
+        
+        for topic, perf in topic_performance.items():
+            if perf['percentage'] >= 80:
+                strong_topics.append(topic)
+            elif perf['percentage'] < 60:
+                weak_topics.append(topic)
+        
+        # Create feedback message
+        feedback_message = ""
+        if strong_topics:
+            feedback_message += f"✅ Great job! You are strong in: {', '.join(strong_topics)}. "
+        if weak_topics:
+            feedback_message += f"📚 You need to focus more on: {', '.join(weak_topics)}. "
+        
+        if not weak_topics and score_percentage >= 80:
+            feedback_message = "🎉 Excellent! You have mastered this chapter!"
+        elif not weak_topics:
+            feedback_message += "Keep practicing to improve further!"
+        
         # Update attempt
         attempt.status = 'verified'
         attempt.submitted_at = timezone.now()
@@ -268,6 +290,7 @@ def submit_quiz(request, attempt_id):
         attempt.correct_answers = correct_count
         attempt.score_percentage = score_percentage
         attempt.is_passed = is_passed
+        attempt.feedback_message = feedback_message  # Store feedback
         attempt.topic_performance = topic_performance
         attempt.save()
         
