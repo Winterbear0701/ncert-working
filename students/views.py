@@ -563,3 +563,191 @@ def clean_old_chats():
     deleted_count = ChatHistory.objects.filter(created_at__lt=cutoff).delete()[0]
     logger.info(f"Cleaned {deleted_count} old chat records")
     return deleted_count
+
+
+# ==================== UNIT TEST VIEWS ====================
+
+@login_required
+def unit_test_list(request):
+    """
+    List available unit tests for students
+    """
+    from .models import UnitTest, UnitTestAttempt
+    
+    # Get all active unit tests
+    tests = UnitTest.objects.filter(is_active=True).select_related('chapter').order_by('chapter__chapter_number')
+    
+    # Get student's attempts for each test
+    test_data = []
+    for test in tests:
+        attempts = UnitTestAttempt.objects.filter(
+            unit_test=test,
+            student=request.user
+        ).order_by('-started_at')
+        
+        best_score = 0
+        if attempts.exists():
+            best_attempt = attempts.filter(status='evaluated').order_by('-overall_score').first()
+            if best_attempt:
+                best_score = best_attempt.overall_score
+        
+        test_data.append({
+            'test': test,
+            'attempts_count': attempts.count(),
+            'best_score': best_score,
+            'latest_attempt': attempts.first()
+        })
+    
+    context = {
+        'test_data': test_data,
+    }
+    
+    return render(request, 'students/unit_test_list.html', context)
+
+
+@login_required
+def unit_test_start(request, test_id):
+    """
+    Start a new unit test attempt
+    """
+    from .models import UnitTest, UnitTestAttempt
+    from django.shortcuts import get_object_or_404, redirect
+    
+    test = get_object_or_404(UnitTest, id=test_id, is_active=True)
+    
+    # Check if there's an in-progress attempt
+    existing_attempt = UnitTestAttempt.objects.filter(
+        unit_test=test,
+        student=request.user,
+        status='in_progress'
+    ).first()
+    
+    if existing_attempt:
+        # Resume existing attempt
+        return redirect('students:unit_test_take', attempt_id=existing_attempt.id)
+    
+    # Get next attempt number
+    last_attempt = UnitTestAttempt.objects.filter(
+        unit_test=test,
+        student=request.user
+    ).order_by('-attempt_number').first()
+    
+    attempt_number = (last_attempt.attempt_number + 1) if last_attempt else 1
+    
+    # Create new attempt
+    attempt = UnitTestAttempt.objects.create(
+        unit_test=test,
+        student=request.user,
+        attempt_number=attempt_number,
+        status='in_progress'
+    )
+    
+    return redirect('students:unit_test_take', attempt_id=attempt.id)
+
+
+@login_required
+def unit_test_take(request, attempt_id):
+    """
+    Take/continue a unit test
+    """
+    from .models import UnitTestAttempt, UnitTestAnswer
+    from django.shortcuts import get_object_or_404
+    
+    attempt = get_object_or_404(UnitTestAttempt, id=attempt_id, student=request.user, status='in_progress')
+    questions = attempt.unit_test.questions.all().order_by('question_number')
+    
+    # Get existing answers
+    existing_answers = {}
+    for answer in UnitTestAnswer.objects.filter(attempt=attempt):
+        existing_answers[answer.question.id] = answer.answer_text
+    
+    # Calculate time remaining
+    elapsed_seconds = (timezone.now() - attempt.started_at).total_seconds()
+    total_seconds = attempt.unit_test.duration_minutes * 60
+    remaining_seconds = max(0, total_seconds - elapsed_seconds)
+    
+    context = {
+        'attempt': attempt,
+        'questions': questions,
+        'existing_answers': existing_answers,
+        'remaining_seconds': int(remaining_seconds),
+    }
+    
+    return render(request, 'students/unit_test_take.html', context)
+
+
+@login_required
+@require_POST
+def unit_test_submit(request, attempt_id):
+    """
+    Submit unit test for evaluation
+    """
+    from .models import UnitTestAttempt, UnitTestAnswer
+    from .unit_test_evaluator import evaluator
+    from django.shortcuts import get_object_or_404, redirect
+    import json
+    
+    attempt = get_object_or_404(UnitTestAttempt, id=attempt_id, student=request.user, status='in_progress')
+    
+    # Save all answers
+    questions = attempt.unit_test.questions.all()
+    
+    for question in questions:
+        answer_text = request.POST.get(f'answer_{question.id}', '').strip()
+        
+        if answer_text:
+            # Create or update answer
+            UnitTestAnswer.objects.update_or_create(
+                attempt=attempt,
+                question=question,
+                defaults={'answer_text': answer_text}
+            )
+    
+    # Update attempt status
+    attempt.status = 'submitted'
+    attempt.submitted_at = timezone.now()
+    attempt.time_taken_seconds = int((timezone.now() - attempt.started_at).total_seconds())
+    attempt.save()
+    
+    # Evaluate the test asynchronously (or synchronously for now)
+    try:
+        evaluation_result = evaluator.evaluate_full_test(attempt.id)
+        logger.info(f"Unit test {attempt.id} evaluated: {evaluation_result}")
+    except Exception as e:
+        logger.error(f"Error evaluating unit test {attempt.id}: {str(e)}")
+        attempt.overall_feedback = "Evaluation in progress. Please check back in a few moments."
+        attempt.save()
+    
+    return redirect('students:unit_test_results', attempt_id=attempt.id)
+
+
+@login_required
+def unit_test_results(request, attempt_id):
+    """
+    View unit test results with scores and heatmap
+    """
+    from .models import UnitTestAttempt, UnitTestAnswer
+    from django.shortcuts import get_object_or_404
+    
+    attempt = get_object_or_404(UnitTestAttempt, id=attempt_id, student=request.user)
+    
+    # Get all answers with evaluations
+    answers = UnitTestAnswer.objects.filter(attempt=attempt).select_related('question').order_by('question__question_number')
+    
+    # Calculate percentage
+    if attempt.unit_test.total_marks > 0:
+        percentage = (attempt.total_marks_obtained / attempt.unit_test.total_marks) * 100
+    else:
+        percentage = 0
+    
+    # Determine pass/fail
+    passed = attempt.total_marks_obtained >= attempt.unit_test.passing_marks
+    
+    context = {
+        'attempt': attempt,
+        'answers': answers,
+        'percentage': round(percentage, 2),
+        'passed': passed,
+    }
+    
+    return render(request, 'students/unit_test_results.html', context)

@@ -111,13 +111,25 @@
                                 <i class="fas fa-tachometer-alt mr-1"></i>Dashboard
                             </a>
                             <a href="{% url 'superadmin:upload_book' %}" class="text-white hover:text-gray-200 transition">
-                                <i class="fas fa-upload mr-1"></i>Upload
+                                <i class="fas fa-upload mr-1"></i>Upload Books
+                            </a>
+                            <a href="{% url 'superadmin:unit_test_list' %}" class="text-white hover:text-gray-200 transition">
+                                <i class="fas fa-file-alt mr-1"></i>Unit Tests
+                            </a>
+                            <a href="{% url 'superadmin:student_analytics' %}" class="text-white hover:text-gray-200 transition">
+                                <i class="fas fa-chart-bar mr-1"></i>Analytics
                             </a>
                         {% else %}
-                            <a href="{% url 'student_dashboard' %}" class="text-white hover:text-gray-200 transition">
+                            <a href="{% url 'students:student_dashboard' %}" class="text-white hover:text-gray-200 transition">
                                 <i class="fas fa-home mr-1"></i>Dashboard
                             </a>
-                            <a href="{% url 'chatbot_page' %}" class="text-white hover:text-gray-200 transition">
+                            <a href="{% url 'students:quiz_dashboard' %}" class="text-white hover:text-gray-200 transition">
+                                <i class="fas fa-brain mr-1"></i>MCQ Quizzes
+                            </a>
+                            <a href="{% url 'students:unit_test_list' %}" class="text-white hover:text-gray-200 transition">
+                                <i class="fas fa-file-alt mr-1"></i>Unit Tests
+                            </a>
+                            <a href="{% url 'students:chatbot_page' %}" class="text-white hover:text-gray-200 transition">
                                 <i class="fas fa-comments mr-1"></i>AI Tutor
                             </a>
                         {% endif %}

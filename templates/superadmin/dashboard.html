@@ -68,17 +68,17 @@
     
     <!-- Quick Actions -->
     <div class="mb-8 fade-in">
-        <div class="grid md:grid-cols-2 gap-4">
+        <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
             <a href="{% url 'superadmin:upload_book' %}" 
                class="block bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h3 class="text-xl font-bold mb-2">
-                            <i class="fas fa-cloud-upload-alt mr-2"></i>Upload New PDF
+                        <h3 class="text-lg font-bold mb-2">
+                            <i class="fas fa-cloud-upload-alt mr-2"></i>Upload PDF
                         </h3>
-                        <p class="text-blue-100">Add NCERT textbook to the system</p>
+                        <p class="text-blue-100 text-sm">Add NCERT textbook</p>
                     </div>
-                    <i class="fas fa-arrow-right text-3xl"></i>
+                    <i class="fas fa-arrow-right text-2xl"></i>
                 </div>
             </a>
             
@@ -86,12 +86,38 @@
                class="block bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h3 class="text-xl font-bold mb-2">
-                            <i class="fas fa-list mr-2"></i>View All Uploads
+                        <h3 class="text-lg font-bold mb-2">
+                            <i class="fas fa-list mr-2"></i>View Uploads
                         </h3>
-                        <p class="text-green-100">Manage uploaded documents</p>
+                        <p class="text-green-100 text-sm">Manage documents</p>
                     </div>
-                    <i class="fas fa-arrow-right text-3xl"></i>
+                    <i class="fas fa-arrow-right text-2xl"></i>
+                </div>
+            </a>
+            
+            <a href="{% url 'superadmin:unit_test_list' %}" 
+               class="block bg-gradient-to-r from-orange-500 to-red-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold mb-2">
+                            <i class="fas fa-file-alt mr-2"></i>Unit Tests
+                        </h3>
+                        <p class="text-orange-100 text-sm">Create & upload tests</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-2xl"></i>
+                </div>
+            </a>
+            
+            <a href="{% url 'superadmin:student_analytics' %}" 
+               class="block bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-lg font-bold mb-2">
+                            <i class="fas fa-chart-bar mr-2"></i>Analytics
+                        </h3>
+                        <p class="text-indigo-100 text-sm">Student performance</p>
+                    </div>
+                    <i class="fas fa-arrow-right text-2xl"></i>
                 </div>
             </a>
         </div>

@@ -287,3 +287,149 @@ class QuizAnswer(models.Model):
     class Meta:
         ordering = ['attempt', 'question__question_number']
         unique_together = ['attempt', 'question']
+
+
+# ==================== UNIT TEST MODELS ====================
+
+class UnitTest(models.Model):
+    """
+    Subjective/Essay-type test created by admin
+    """
+    title = models.CharField(max_length=255)
+    chapter = models.ForeignKey(QuizChapter, on_delete=models.CASCADE, related_name='unit_tests')
+    description = models.TextField(blank=True)
+    
+    # Test settings
+    total_marks = models.IntegerField(default=100)
+    duration_minutes = models.IntegerField(default=60)
+    passing_marks = models.IntegerField(default=40)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    
+    def __str__(self):
+        return f"{self.title} - {self.chapter.chapter_name}"
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['chapter', 'is_active']),
+        ]
+
+
+class UnitTestQuestion(models.Model):
+    """
+    Individual question in a unit test with model answer
+    """
+    unit_test = models.ForeignKey(UnitTest, on_delete=models.CASCADE, related_name='questions')
+    question_number = models.IntegerField()
+    
+    # Question details
+    question_text = models.TextField()
+    marks = models.IntegerField(default=10)
+    
+    # Model answer provided by admin
+    model_answer = models.TextField(help_text="Expected answer from students")
+    
+    # Evaluation criteria (optional)
+    key_points = models.JSONField(null=True, blank=True, help_text="Key points that should be in answer")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.unit_test.title} - Q{self.question_number}"
+    
+    class Meta:
+        ordering = ['unit_test', 'question_number']
+        unique_together = ['unit_test', 'question_number']
+
+
+class UnitTestAttempt(models.Model):
+    """
+    Student's attempt at a unit test
+    """
+    unit_test = models.ForeignKey(UnitTest, on_delete=models.CASCADE, related_name='attempts')
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='unit_test_attempts')
+    
+    # Attempt details
+    attempt_number = models.IntegerField(default=1)
+    
+    # Scores
+    total_marks_obtained = models.FloatField(default=0)
+    content_score = models.FloatField(default=0, help_text="Score based on content match")
+    grammar_score = models.FloatField(default=0, help_text="Score based on grammar quality")
+    overall_score = models.FloatField(default=0, help_text="Combined final score")
+    
+    # Topic-wise performance for heatmap
+    topic_performance = models.JSONField(default=dict, blank=True)
+    
+    # Status
+    STATUS_CHOICES = [
+        ('in_progress', 'In Progress'),
+        ('submitted', 'Submitted'),
+        ('evaluated', 'Evaluated'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='in_progress')
+    
+    # Feedback
+    overall_feedback = models.TextField(null=True, blank=True)
+    strengths = models.TextField(null=True, blank=True)
+    improvements = models.TextField(null=True, blank=True)
+    
+    # Timestamps
+    started_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    evaluated_at = models.DateTimeField(null=True, blank=True)
+    time_taken_seconds = models.IntegerField(default=0)
+    
+    def __str__(self):
+        return f"{self.student.email} - {self.unit_test.title} - Attempt {self.attempt_number}"
+    
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['student', 'unit_test', '-started_at']),
+        ]
+
+
+class UnitTestAnswer(models.Model):
+    """
+    Student's answer to a unit test question
+    """
+    attempt = models.ForeignKey(UnitTestAttempt, on_delete=models.CASCADE, related_name='answers')
+    question = models.ForeignKey(UnitTestQuestion, on_delete=models.CASCADE)
+    
+    # Student's answer
+    answer_text = models.TextField()
+    
+    # AI Evaluation scores
+    content_score = models.FloatField(default=0, help_text="How well content matches model answer")
+    grammar_score = models.FloatField(default=0, help_text="Grammar and language quality")
+    marks_obtained = models.FloatField(default=0)
+    
+    # AI Feedback
+    content_feedback = models.TextField(null=True, blank=True)
+    grammar_feedback = models.TextField(null=True, blank=True)
+    overall_feedback = models.TextField(null=True, blank=True)
+    
+    # Key points matched
+    key_points_covered = models.JSONField(null=True, blank=True)
+    key_points_missed = models.JSONField(null=True, blank=True)
+    
+    # Evaluation metadata
+    evaluated_at = models.DateTimeField(null=True, blank=True)
+    evaluation_model = models.CharField(max_length=50, default='gemini')
+    
+    answered_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.attempt} - Q{self.question.question_number}"
+    
+    class Meta:
+        ordering = ['attempt', 'question__question_number']
+        unique_together = ['attempt', 'question']
