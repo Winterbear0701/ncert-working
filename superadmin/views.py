@@ -564,7 +564,7 @@ def student_detail_analytics(request, student_id):
     for chapter in chapters:
         attempts = UnitTestAttempt.objects.filter(
             student=student,
-            unit_test__chapter=chapter,
+            unit_test__chapters=chapter,  # Changed from chapter to chapters
             status='evaluated'
         ).select_related('unit_test')
         

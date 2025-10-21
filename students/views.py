@@ -575,7 +575,7 @@ def unit_test_list(request):
     from .models import UnitTest, UnitTestAttempt
     
     # Get all active unit tests
-    tests = UnitTest.objects.filter(is_active=True).select_related('chapter').order_by('chapter__chapter_number')
+    tests = UnitTest.objects.filter(is_active=True).prefetch_related('chapters').order_by('-created_at')
     
     # Get student's attempts for each test
     test_data = []

@@ -3,145 +3,214 @@
 {% block title %}Student Dashboard - NCERT Learning{% endblock %}
 
 {% block content %}
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <!-- Welcome Section -->
-    <div class="mb-8 fade-in">
-        <h1 class="text-4xl font-bold text-gray-800 mb-2">
-            Welcome back, {{ user.username }}!
-        </h1>
-        <p class="text-gray-600">
-            Ready to continue your learning journey?
-        </p>
-    </div>
+<!-- Modern Elegant Student Dashboard -->
+<div class="min-h-screen">
     
-    <!-- Quick Stats -->
-    <div class="grid md:grid-cols-3 gap-6 mb-8">
-        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-500 text-sm font-semibold uppercase">Total Chats</p>
-                    <p class="text-3xl font-bold text-blue-600">{{ total_chats }}</p>
-                </div>
-                <div class="text-blue-500 text-4xl">
-                    <i class="fas fa-comments"></i>
-                </div>
-            </div>
+    <!-- Elegant Hero Header -->
+    <div class="relative overflow-hidden bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 text-white mb-8">
+        <!-- Subtle Pattern Overlay -->
+        <div class="absolute inset-0 opacity-5">
+            <svg width="100%" height="100%">
+                <defs>
+                    <pattern id="student-pattern" x="0" y="0" width="80" height="80" patternUnits="userSpaceOnUse">
+                        <circle cx="40" cy="40" r="30" fill="none" stroke="currentColor" stroke-width="0.5"/>
+                        <path d="M20 40 L60 40 M40 20 L40 60" stroke="currentColor" stroke-width="0.5"/>
+                    </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#student-pattern)"/>
+            </svg>
         </div>
         
-        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in" style="animation-delay: 0.1s">
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-500 text-sm font-semibold uppercase">Your Standard</p>
-                    <p class="text-3xl font-bold text-green-600">{{ user.standard|default:"N/A" }}</p>
-                </div>
-                <div class="text-green-500 text-4xl">
-                    <i class="fas fa-graduation-cap"></i>
-                </div>
-            </div>
-        </div>
-        
-        <div class="bg-white rounded-lg shadow-lg p-6 card-hover fade-in" style="animation-delay: 0.2s">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-gray-500 text-sm font-semibold uppercase">AI Tutor</p>
-                    <p class="text-xl font-bold text-purple-600">24/7 Available</p>
-                </div>
-                <div class="text-purple-500 text-4xl">
-                    <i class="fas fa-robot"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Quick Actions -->
-    <div class="mb-8 fade-in">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">Quick Actions</h2>
-        <div class="grid md:grid-cols-3 gap-4">
-            <a href="{% url 'students:chatbot_page' %}" 
-               class="block bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h3 class="text-xl font-bold mb-2">
-                            <i class="fas fa-comments mr-2"></i>Start Chat
-                        </h3>
-                        <p class="text-blue-100">Ask your AI tutor any question</p>
-                    </div>
-                    <i class="fas fa-arrow-right text-3xl"></i>
-                </div>
-            </a>
-            
-            <a href="{% url 'students:quiz_dashboard' %}" 
-               class="block bg-gradient-to-r from-orange-500 to-red-600 rounded-lg p-6 text-white shadow-lg hover:shadow-xl transition transform hover:scale-105">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h3 class="text-xl font-bold mb-2">
-                            <i class="fas fa-clipboard-check mr-2"></i>Take Quiz
-                        </h3>
-                        <p class="text-orange-100">Test your knowledge with quizzes</p>
-                    </div>
-                    <i class="fas fa-arrow-right text-3xl"></i>
-                </div>
-            </a>
-            
-            <div class="block bg-gradient-to-r from-green-500 to-teal-600 rounded-lg p-6 text-white shadow-lg">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h3 class="text-xl font-bold mb-2">
-                            <i class="fas fa-book mr-2"></i>Study Materials
-                        </h3>
-                        <p class="text-green-100">Standards 5-10 NCERT content</p>
-                    </div>
-                    <i class="fas fa-check-circle text-3xl"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Recent Chats -->
-    <div class="bg-white rounded-lg shadow-lg p-6 fade-in">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">
-            <i class="fas fa-history mr-2 text-gray-600"></i>
-            Recent Chats
-        </h2>
-        
-        {% if recent_chats %}
-            <div class="space-y-4">
-                {% for chat in recent_chats %}
-                    <div class="border-l-4 border-blue-500 pl-4 py-2 hover:bg-gray-50 transition">
-                        <div class="flex justify-between items-start">
-                            <div class="flex-1">
-                                <p class="font-semibold text-gray-800 mb-1">
-                                    <i class="fas fa-question-circle text-blue-500 mr-1"></i>
-                                    {{ chat.question|truncatewords:15 }}
-                                </p>
-                                <p class="text-gray-600 text-sm mb-2">
-                                    {{ chat.answer|truncatewords:25 }}
-                                </p>
-                                <p class="text-xs text-gray-500">
-                                    <i class="far fa-clock mr-1"></i>
-                                    {{ chat.created_at|timesince }} ago
-                                </p>
-                            </div>
+                <div class="space-y-2 fade-in">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-14 h-14 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl">
+                            <i class="fas fa-user-graduate text-2xl text-white"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl md:text-4xl font-bold">Welcome back, {{ user.username }}!</h1>
+                            <p class="text-blue-200 text-sm md:text-base">Ready to continue your learning journey?</p>
                         </div>
                     </div>
-                {% endfor %}
+                </div>
+                
+                <!-- Floating Book Illustration -->
+                <div class="hidden md:block animate-float">
+                    <i class="fas fa-book-reader text-6xl text-blue-300 opacity-50"></i>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Wave Divider -->
+        <div class="relative">
+            <svg class="w-full h-12" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" fill="rgb(248 250 252)"></path>
+            </svg>
+        </div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <!-- Total Chats Card -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 fade-in transform hover:scale-105 transition-all duration-300 hover:shadow-2xl group">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                        <i class="fas fa-comments text-2xl text-white"></i>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-slate-500 text-xs font-semibold uppercase tracking-wide">Total Chats</p>
+                        <p class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{{ total_chats }}</p>
+                    </div>
+                </div>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                    <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full" style="width: {% if total_chats > 0 %}{{ total_chats|add:0|floatformat:0 }}{% else %}0{% endif %}%"></div>
+                </div>
             </div>
             
-            {% if total_chats > 10 %}
-                <div class="mt-4 text-center">
-                    <p class="text-gray-500">Showing 10 most recent chats</p>
+            <!-- Standard Card -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 fade-in transform hover:scale-105 transition-all duration-300 hover:shadow-2xl group" style="animation-delay: 0.1s">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                        <i class="fas fa-graduation-cap text-2xl text-white"></i>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-slate-500 text-xs font-semibold uppercase tracking-wide">Your Standard</p>
+                        <p class="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">{{ user.standard|default:"N/A" }}</p>
+                    </div>
                 </div>
-            {% endif %}
-        {% else %}
-            <div class="text-center py-8">
-                <i class="fas fa-comment-slash text-gray-300 text-6xl mb-4"></i>
-                <p class="text-gray-500 mb-4">No chat history yet</p>
+                <div class="w-full bg-slate-100 rounded-full h-2">
+                    <div class="bg-gradient-to-r from-emerald-500 to-green-600 h-2 rounded-full" style="width: 85%"></div>
+                </div>
+            </div>
+            
+            <!-- AI Tutor Card -->
+            <div class="bg-white rounded-2xl shadow-lg p-6 fade-in transform hover:scale-105 transition-all duration-300 hover:shadow-2xl group" style="animation-delay: 0.2s">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                        <i class="fas fa-robot text-2xl text-white"></i>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-slate-500 text-xs font-semibold uppercase tracking-wide">AI Tutor</p>
+                        <p class="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">24/7 Online</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                    </span>
+                    <span class="text-xs text-slate-600 font-medium">Available Now</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center">
+                <i class="fas fa-bolt text-yellow-500 mr-2"></i>
+                Quick Actions
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Start Chat -->
                 <a href="{% url 'students:chatbot_page' %}" 
-                   class="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition">
-                    <i class="fas fa-comments mr-2"></i>Start Your First Chat
+                   class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <i class="fas fa-comments text-xl text-white"></i>
+                        </div>
+                        <i class="fas fa-arrow-right text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-2">Start Chat</h3>
+                    <p class="text-slate-600 text-sm">Ask your AI tutor any question about your studies</p>
+                </a>
+                
+                <!-- Take Quiz -->
+                <a href="{% url 'students:quiz_dashboard' %}" 
+                   class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in" style="animation-delay: 0.1s">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <i class="fas fa-clipboard-check text-xl text-white"></i>
+                        </div>
+                        <i class="fas fa-arrow-right text-slate-400 group-hover:text-orange-600 group-hover:translate-x-1 transition-all"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-2">Take Quiz</h3>
+                    <p class="text-slate-600 text-sm">Test your knowledge with interactive quizzes</p>
+                </a>
+                
+                <!-- Unit Tests -->
+                <a href="{% url 'students:unit_test_list' %}" 
+                   class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in" style="animation-delay: 0.2s">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <i class="fas fa-file-alt text-xl text-white"></i>
+                        </div>
+                        <i class="fas fa-arrow-right text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-2">Unit Tests</h3>
+                    <p class="text-slate-600 text-sm">Practice with NCERT unit tests for standards 5-10</p>
                 </a>
             </div>
-        {% endif %}
+        </div>
+        
+        <!-- Recent Chats -->
+        <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in mb-8">
+            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 backdrop-blur-sm">
+                <h2 class="text-2xl font-bold text-white flex items-center">
+                    <i class="fas fa-history mr-3"></i>
+                    Recent Chats
+                </h2>
+                <p class="text-indigo-100 text-sm mt-1">Your latest conversations with AI tutor</p>
+            </div>
+            
+            {% if recent_chats %}
+                <div class="divide-y divide-slate-100">
+                    {% for chat in recent_chats %}
+                        <div class="p-6 hover:bg-slate-50 transition-colors group">
+                            <div class="flex items-start space-x-4">
+                                <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                                    <i class="fas fa-question text-white"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-semibold text-slate-900 mb-2 group-hover:text-indigo-600 transition-colors">
+                                        {{ chat.question|truncatewords:15 }}
+                                    </p>
+                                    <p class="text-slate-600 text-sm mb-3 line-clamp-2">
+                                        {{ chat.answer|truncatewords:25 }}
+                                    </p>
+                                    <div class="flex items-center space-x-4 text-xs text-slate-500">
+                                        <span class="flex items-center">
+                                            <i class="far fa-clock mr-1.5"></i>
+                                            {{ chat.created_at|timesince }} ago
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                
+                {% if total_chats > 10 %}
+                    <div class="px-6 py-4 bg-slate-50 text-center">
+                        <p class="text-sm text-slate-600">Showing 10 most recent chats out of {{ total_chats }} total</p>
+                    </div>
+                {% endif %}
+            {% else %}
+                <div class="text-center py-16 px-4">
+                    <div class="inline-block p-6 bg-slate-50 rounded-full mb-6">
+                        <i class="fas fa-comment-slash text-5xl text-slate-300"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-2">No Chat History Yet</h3>
+                    <p class="text-slate-600 mb-6 max-w-md mx-auto">Start your learning journey by chatting with our AI tutor</p>
+                    <a href="{% url 'students:chatbot_page' %}" 
+                       class="inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-semibold rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg transform hover:scale-105">
+                        <i class="fas fa-comments mr-2 text-lg"></i>
+                        Start Your First Chat
+                    </a>
+                </div>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}
