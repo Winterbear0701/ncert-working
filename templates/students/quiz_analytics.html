@@ -31,129 +31,316 @@
     </div>
     {% else %}
 
-    <!-- Summary Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600 mb-1">Total Attempts</p>
-                    <p class="text-3xl font-bold text-gray-900">{{ attempts|length }}</p>
+    <!-- Modern Summary Stats with Gradient Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Total Attempts Card -->
+        <div class="relative overflow-hidden bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-700 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full"></div>
+            <div class="absolute bottom-0 left-0 -mb-4 -ml-4 w-32 h-32 bg-white opacity-5 rounded-full"></div>
+            <div class="relative">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                        <i class="fas fa-redo-alt text-2xl"></i>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-blue-100 font-medium">Total Attempts</p>
+                    </div>
                 </div>
-                <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
+                <div class="text-5xl font-black mb-1">{{ attempts|length }}</div>
+                <div class="flex items-center text-sm text-blue-100">
+                    <i class="fas fa-chart-line mr-2"></i>
+                    <span>Quiz taken {{ attempts|length }} time{{ attempts|length|pluralize }}</span>
+                </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600 mb-1">Best Score</p>
-                    <p class="text-3xl font-bold text-green-600">{{ best_score|floatformat:0 }}%</p>
+        <!-- Best Score Card -->
+        <div class="relative overflow-hidden bg-gradient-to-br from-emerald-500 via-green-600 to-teal-700 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full"></div>
+            <div class="absolute bottom-0 left-0 -mb-4 -ml-4 w-32 h-32 bg-white opacity-5 rounded-full"></div>
+            <div class="relative">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                        <i class="fas fa-trophy text-2xl"></i>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-green-100 font-medium">Best Score</p>
+                    </div>
                 </div>
-                <svg class="w-12 h-12 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
+                <div class="text-5xl font-black mb-1">{{ best_score|floatformat:0 }}%</div>
+                <div class="flex items-center text-sm text-green-100">
+                    <i class="fas fa-star mr-2"></i>
+                    <span>{% if best_score >= 90 %}Outstanding!{% elif best_score >= 80 %}Excellent!{% elif best_score >= 70 %}Great Job!{% else %}Keep Going!{% endif %}</span>
+                </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600 mb-1">Average Score</p>
-                    <p class="text-3xl font-bold text-blue-600">{{ average_score|floatformat:0 }}%</p>
+        <!-- Average Score Card -->
+        <div class="relative overflow-hidden bg-gradient-to-br from-purple-500 via-indigo-600 to-blue-700 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full"></div>
+            <div class="absolute bottom-0 left-0 -mb-4 -ml-4 w-32 h-32 bg-white opacity-5 rounded-full"></div>
+            <div class="relative">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                        <i class="fas fa-chart-bar text-2xl"></i>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-purple-100 font-medium">Average Score</p>
+                    </div>
                 </div>
-                <svg class="w-12 h-12 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
+                <div class="text-5xl font-black mb-1">{{ average_score|floatformat:0 }}%</div>
+                <div class="flex items-center text-sm text-purple-100">
+                    <i class="fas fa-balance-scale mr-2"></i>
+                    <span>Overall performance</span>
+                </div>
             </div>
         </div>
 
-        <div class="bg-white rounded-lg shadow-md p-6">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-600 mb-1">Improvement</p>
-                    <p class="text-3xl font-bold {% if improvement >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
-                        {% if improvement >= 0 %}+{% endif %}{{ improvement|floatformat:0 }}%
-                    </p>
+        <!-- Improvement Card -->
+        <div class="relative overflow-hidden bg-gradient-to-br {% if improvement >= 0 %}from-orange-500 via-amber-600 to-yellow-600{% else %}from-red-500 via-rose-600 to-pink-600{% endif %} rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white opacity-10 rounded-full"></div>
+            <div class="absolute bottom-0 left-0 -mb-4 -ml-4 w-32 h-32 bg-white opacity-5 rounded-full"></div>
+            <div class="relative">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="p-3 bg-white/20 backdrop-blur-sm rounded-xl">
+                        <i class="fas fa-{% if improvement >= 0 %}arrow-trend-up{% else %}arrow-trend-down{% endif %} text-2xl"></i>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm {% if improvement >= 0 %}text-orange-100{% else %}text-red-100{% endif %} font-medium">Improvement</p>
+                    </div>
                 </div>
-                {% if improvement >= 0 %}
-                <svg class="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                </svg>
-                {% else %}
-                <svg class="w-12 h-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
-                </svg>
-                {% endif %}
+                <div class="text-5xl font-black mb-1">
+                    {% if improvement >= 0 %}+{% endif %}{{ improvement|floatformat:0 }}%
+                </div>
+                <div class="flex items-center text-sm {% if improvement >= 0 %}text-orange-100{% else %}text-red-100{% endif %}">
+                    <i class="fas fa-{% if improvement >= 0 %}fire{% else %}exclamation-triangle{% endif %} mr-2"></i>
+                    <span>{% if improvement >= 0 %}Growing stronger!{% else %}Need more practice{% endif %}</span>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Score Trend Chart -->
-    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-        <h2 class="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-            <svg class="w-7 h-7 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-            </svg>
-            Score Trend Over Time
-        </h2>
-
-        <!-- ASCII Chart -->
-        <div class="overflow-x-auto">
-            <div class="min-w-full">
-                <!-- Y-axis labels and lines -->
-                {% for pct in y_axis_values %}
-                <div class="flex items-center h-12 {% if pct == 70 %}border-y-2 border-red-300{% endif %}">
-                    <span class="w-12 text-right text-sm text-gray-600 pr-2">{{ pct }}%</span>
-                    <div class="flex-1 border-t border-gray-200 relative">
-                        {% if pct == chapter.passing_percentage|floatformat:0 %}
-                        <div class="absolute left-0 w-full border-t-2 border-dashed border-red-400"></div>
-                        <span class="absolute left-2 -top-3 text-xs text-red-600 bg-white px-1">Passing Line</span>
-                        {% endif %}
-                        
-                        <!-- Plot points -->
-                        <div class="flex justify-between px-4">
-                            {% for attempt in attempts %}
-                            {% if pct == attempt.score_percentage|floatformat:0|add:"0" %}
-                            <div class="relative">
-                                <div class="w-4 h-4 rounded-full {% if attempt.is_passed %}bg-green-500{% else %}bg-red-500{% endif %} absolute -top-2 -left-2"></div>
-                            </div>
-                            {% endif %}
-                            {% endfor %}
+    <!-- Performance Heatmap - The WOW Section! -->
+    <div class="bg-gradient-to-br from-slate-50 via-white to-blue-50 rounded-2xl shadow-2xl p-8 mb-8 border border-slate-200">
+        <div class="flex items-center justify-between mb-8">
+            <div>
+                <h2 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 mb-2 flex items-center">
+                    <i class="fas fa-fire text-orange-500 mr-3 animate-pulse"></i>
+                    Performance Heatmap
+                </h2>
+                <p class="text-slate-600 text-sm">Visual journey of your quiz attempts - darker colors mean better scores!</p>
+            </div>
+            <div class="hidden lg:block">
+                <div class="bg-white rounded-xl p-4 shadow-lg border border-slate-200">
+                    <div class="flex items-center space-x-3 text-xs font-semibold text-slate-600">
+                        <span>Score:</span>
+                        <div class="flex items-center space-x-1">
+                            <div class="w-6 h-6 rounded bg-gradient-to-br from-red-200 to-red-300"></div>
+                            <span>Low</span>
                         </div>
-                    </div>
-                </div>
-                {% endfor %}
-                
-                <!-- X-axis labels -->
-                <div class="flex items-center mt-2">
-                    <span class="w-12"></span>
-                    <div class="flex-1 flex justify-between px-4 text-sm text-gray-600">
-                        {% for attempt in attempts %}
-                        <span class="text-center">
-                            Att {{ forloop.counter }}<br>
-                            <span class="text-xs text-gray-500">{{ attempt.submitted_at|date:"M d" }}</span>
-                        </span>
-                        {% endfor %}
+                        <div class="flex items-center space-x-1">
+                            <div class="w-6 h-6 rounded bg-gradient-to-br from-yellow-300 to-amber-400"></div>
+                            <span>Medium</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <div class="w-6 h-6 rounded bg-gradient-to-br from-green-500 to-emerald-600"></div>
+                            <span>High</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Scores List -->
-        <div class="mt-6 flex flex-wrap gap-4 justify-center">
+        <!-- Heatmap Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
             {% for attempt in attempts %}
-            <div class="flex items-center gap-2 px-4 py-2 rounded-lg {% if attempt.is_passed %}bg-green-50 border border-green-300{% else %}bg-red-50 border border-red-300{% endif %}">
-                <span class="font-medium text-gray-700">Attempt {{ forloop.counter }}:</span>
-                <span class="text-xl font-bold {% if attempt.is_passed %}text-green-700{% else %}text-red-700{% endif %}">
-                    {{ attempt.score_percentage|floatformat:0 }}%
-                </span>
-                {% if attempt.is_passed %}
-                <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                </svg>
-                {% endif %}
+            <div class="group relative transform hover:scale-105 transition-all duration-300">
+                <!-- Heatmap Cell -->
+                <div class="relative overflow-hidden rounded-2xl shadow-xl
+                    {% if attempt.score_percentage >= 90 %}bg-gradient-to-br from-emerald-500 via-green-600 to-teal-700
+                    {% elif attempt.score_percentage >= 80 %}bg-gradient-to-br from-green-400 via-emerald-500 to-green-600
+                    {% elif attempt.score_percentage >= 70 %}bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500
+                    {% elif attempt.score_percentage >= 60 %}bg-gradient-to-br from-orange-400 via-amber-500 to-yellow-500
+                    {% elif attempt.score_percentage >= 50 %}bg-gradient-to-br from-red-400 via-rose-500 to-pink-500
+                    {% else %}bg-gradient-to-br from-red-500 via-red-600 to-rose-700{% endif %}
+                    p-6 text-white h-40 flex flex-col justify-between">
+                    
+                    <!-- Decorative Elements -->
+                    <div class="absolute top-0 right-0 -mt-4 -mr-4 w-20 h-20 bg-white opacity-10 rounded-full"></div>
+                    <div class="absolute bottom-0 left-0 -mb-4 -ml-4 w-16 h-16 bg-black opacity-10 rounded-full"></div>
+                    
+                    <!-- Content -->
+                    <div class="relative z-10">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-bold opacity-90">Attempt {{ forloop.counter }}</span>
+                            {% if attempt.score_percentage >= 90 %}
+                                <i class="fas fa-crown text-yellow-300 animate-bounce"></i>
+                            {% elif attempt.score_percentage >= 80 %}
+                                <i class="fas fa-star"></i>
+                            {% elif attempt.score_percentage >= 70 %}
+                                <i class="fas fa-smile"></i>
+                            {% elif attempt.score_percentage >= 60 %}
+                                <i class="fas fa-meh"></i>
+                            {% else %}
+                                <i class="fas fa-frown"></i>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Score -->
+                        <div class="text-5xl font-black mb-1">
+                            {{ attempt.score_percentage|floatformat:0 }}<span class="text-2xl">%</span>
+                        </div>
+                        
+                        <!-- Status Badge -->
+                        <div class="inline-flex items-center space-x-1 px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-xs font-bold">
+                            {% if attempt.score_percentage >= 90 %}
+                                <i class="fas fa-fire-alt"></i><span>Outstanding!</span>
+                            {% elif attempt.score_percentage >= 80 %}
+                                <i class="fas fa-check-circle"></i><span>Excellent!</span>
+                            {% elif attempt.score_percentage >= 70 %}
+                                <i class="fas fa-thumbs-up"></i><span>Good Job!</span>
+                            {% elif attempt.score_percentage >= 60 %}
+                                <i class="fas fa-hand-paper"></i><span>Keep Going</span>
+                            {% else %}
+                                <i class="fas fa-redo"></i><span>Try Again</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Date -->
+                    <div class="relative z-10 text-xs opacity-75 flex items-center">
+                        <i class="fas fa-calendar-alt mr-2"></i>
+                        {{ attempt.submitted_at|date:"M d, Y" }}
+                    </div>
+                </div>
+
+                <!-- Hover Tooltip -->
+                <div class="absolute -bottom-20 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-20">
+                    <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl text-sm whitespace-nowrap">
+                        <div class="font-bold mb-1">Details</div>
+                        <div class="text-xs space-y-1 text-slate-300">
+                            <div><i class="fas fa-check-circle mr-2 text-green-400"></i>Score: {{ attempt.score_percentage|floatformat:1 }}%</div>
+                            <div><i class="fas fa-clock mr-2 text-blue-400"></i>{{ attempt.submitted_at|date:"M d, h:i A" }}</div>
+                            <div><i class="fas fa-question-circle mr-2 text-purple-400"></i>{{ attempt.total_questions }} questions</div>
+                        </div>
+                        <!-- Arrow -->
+                        <div class="absolute -top-2 left-1/2 transform -translate-x-1/2 w-4 h-4 bg-slate-900 rotate-45"></div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Add New Attempt Card -->
+            <a href="{% url 'students:start_quiz' chapter.chapter_id %}" 
+               class="group relative transform hover:scale-105 transition-all duration-300">
+                <div class="relative overflow-hidden rounded-2xl border-4 border-dashed border-slate-300 hover:border-blue-500 bg-gradient-to-br from-slate-50 to-blue-50 p-6 h-40 flex flex-col items-center justify-center text-center transition-all duration-300 hover:shadow-2xl">
+                    <div class="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600 opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                    <div class="relative z-10">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mb-3 transform group-hover:rotate-180 transition-transform duration-500 shadow-lg">
+                            <i class="fas fa-plus text-3xl text-white"></i>
+                        </div>
+                        <p class="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition-colors">Take New Quiz</p>
+                        <p class="text-xs text-slate-500 mt-1">Challenge yourself!</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+
+        <!-- Performance Stats Bar -->
+        <div class="mt-8 bg-white rounded-xl p-6 shadow-lg border border-slate-200">
+            <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                <i class="fas fa-chart-line text-blue-600 mr-2"></i>
+                Quick Stats
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="text-center">
+                    <div class="text-3xl font-black text-emerald-600">
+                        {{ attempts|length|add:0|floatformat:0 }}
+                    </div>
+                    <div class="text-xs text-slate-600 mt-1">Total Attempts</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl font-black text-blue-600">
+                        {{ average_score|floatformat:0 }}%
+                    </div>
+                    <div class="text-xs text-slate-600 mt-1">Average Score</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl font-black text-purple-600">
+                        {{ best_score|floatformat:0 }}%
+                    </div>
+                    <div class="text-xs text-slate-600 mt-1">Best Score</div>
+                </div>
+                <div class="text-center">
+                    <div class="text-3xl font-black {% if improvement >= 0 %}text-orange-600{% else %}text-red-600{% endif %}">
+                        {% if improvement >= 0 %}+{% endif %}{{ improvement|floatformat:0 }}%
+                    </div>
+                    <div class="text-xs text-slate-600 mt-1">Growth Rate</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Attempts List -->
+    <div class="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-slate-200">
+        <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center">
+            <i class="fas fa-list-ol text-indigo-600 mr-3"></i>
+            All Attempts Timeline
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for attempt in attempts %}
+            <div class="group relative overflow-hidden rounded-xl shadow-md hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1
+                {% if attempt.score_percentage >= 80 %}bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300
+                {% elif attempt.score_percentage >= 60 %}bg-gradient-to-br from-yellow-50 to-amber-50 border-2 border-yellow-300
+                {% else %}bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-300{% endif %} p-5">
+                
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white
+                            {% if attempt.score_percentage >= 80 %}bg-gradient-to-br from-green-500 to-emerald-600
+                            {% elif attempt.score_percentage >= 60 %}bg-gradient-to-br from-yellow-500 to-amber-600
+                            {% else %}bg-gradient-to-br from-red-500 to-rose-600{% endif %}">
+                            {{ forloop.counter }}
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-slate-800">Attempt {{ forloop.counter }}</p>
+                            <p class="text-xs text-slate-500">{{ attempt.submitted_at|date:"M d, Y" }}</p>
+                        </div>
+                    </div>
+                    {% if attempt.score_percentage >= 90 %}
+                        <i class="fas fa-crown text-yellow-500 text-xl animate-pulse"></i>
+                    {% elif attempt.score_percentage >= 80 %}
+                        <i class="fas fa-star text-green-500 text-xl"></i>
+                    {% elif attempt.score_percentage >= 70 %}
+                        <i class="fas fa-thumbs-up text-blue-500 text-lg"></i>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <div class="text-4xl font-black
+                        {% if attempt.score_percentage >= 80 %}text-green-700
+                        {% elif attempt.score_percentage >= 60 %}text-yellow-700
+                        {% else %}text-red-700{% endif %}">
+                        {{ attempt.score_percentage|floatformat:0 }}<span class="text-xl">%</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between text-xs">
+                    <span class="inline-flex items-center space-x-1 px-3 py-1 rounded-full font-semibold
+                        {% if attempt.score_percentage >= 80 %}bg-green-200 text-green-800
+                        {% elif attempt.score_percentage >= 60 %}bg-yellow-200 text-yellow-800
+                        {% else %}bg-red-200 text-red-800{% endif %}">
+                        {% if attempt.is_passed %}
+                            <i class="fas fa-check-circle"></i><span>Passed</span>
+                        {% else %}
+                            <i class="fas fa-times-circle"></i><span>Failed</span>
+                        {% endif %}
+                    </span>
+                    <span class="text-slate-600">
+                        <i class="fas fa-clock mr-1"></i>
+                        {{ attempt.submitted_at|date:"h:i A" }}
+                    </span>
+                </div>
             </div>
             {% endfor %}
         </div>
