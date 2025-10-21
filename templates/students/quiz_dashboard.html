@@ -9,7 +9,7 @@
         <h1 class="text-3xl font-bold text-gray-900">Quiz Dashboard - Class {{ student_class }}</h1>
         <p class="text-gray-600 mt-2">Complete quizzes to unlock new chapters and track your progress</p>
         <div class="flex gap-4 mt-4">
-            <a href="{% url 'quiz_history' %}" class="inline-flex items-center text-blue-600 hover:text-blue-800">
+            <a href="{% url 'students:quiz_history' %}" class="inline-flex items-center text-blue-600 hover:text-blue-800">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -117,7 +117,7 @@
                     <!-- Action Buttons -->
                     <div class="flex gap-3 ml-4">
                         {% if chapter.is_unlocked %}
-                            <a href="{% url 'start_quiz' chapter.chapter_id %}" 
+                            <a href="{% url 'students:start_quiz' chapter.chapter_id %}" 
                                class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium inline-flex items-center">
                                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -127,7 +127,7 @@
                             </a>
                             
                             {% if chapter.total_attempts > 0 %}
-                            <a href="{% url 'quiz_analytics' chapter.chapter_id %}" 
+                            <a href="{% url 'students:quiz_analytics' chapter.chapter_id %}" 
                                class="px-4 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium inline-flex items-center">
                                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -154,7 +154,7 @@
 
     <!-- Back to Dashboard -->
     <div class="mt-8">
-        <a href="{% url 'student_dashboard' %}" class="inline-flex items-center text-blue-600 hover:text-blue-800">
+        <a href="{% url 'students:student_dashboard' %}" class="inline-flex items-center text-blue-600 hover:text-blue-800">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>

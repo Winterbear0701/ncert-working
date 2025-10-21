@@ -12,7 +12,7 @@ def home_view(request):
             return redirect('superadmin:dashboard')
         else:
             from django.shortcuts import redirect
-            return redirect('student_dashboard')
+            return redirect('students:student_dashboard')
     return render(request, 'home.html')
 
 urlpatterns = [

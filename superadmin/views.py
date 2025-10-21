@@ -161,7 +161,7 @@ def unit_test_list(request):
     """
     from students.models import UnitTest, QuizChapter
     
-    tests = UnitTest.objects.select_related('chapter', 'created_by').all().order_by('-created_at')
+    tests = UnitTest.objects.select_related('created_by').prefetch_related('chapters').all().order_by('-created_at')
     chapters = QuizChapter.objects.all().order_by('chapter_number')
     
     context = {
@@ -182,18 +182,16 @@ def unit_test_create(request):
     
     if request.method == 'POST':
         title = request.POST.get('title')
-        chapter_id = request.POST.get('chapter')
+        chapter_ids = request.POST.getlist('chapters')  # Changed to getlist for multiple chapters
         description = request.POST.get('description', '')
         total_marks = request.POST.get('total_marks', 100)
         duration_minutes = request.POST.get('duration_minutes', 60)
         passing_marks = request.POST.get('passing_marks', 40)
         is_active = request.POST.get('is_active') == 'on'
         
-        chapter = get_object_or_404(QuizChapter, id=chapter_id)
-        
+        # Create unit test without chapters first
         unit_test = UnitTest.objects.create(
             title=title,
-            chapter=chapter,
             description=description,
             total_marks=total_marks,
             duration_minutes=duration_minutes,
@@ -201,6 +199,10 @@ def unit_test_create(request):
             is_active=is_active,
             created_by=request.user
         )
+        
+        # Add multiple chapters
+        if chapter_ids:
+            unit_test.chapters.set(chapter_ids)
         
         return redirect('superadmin:unit_test_detail', test_id=unit_test.id)
     

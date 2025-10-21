@@ -294,9 +294,10 @@ class QuizAnswer(models.Model):
 class UnitTest(models.Model):
     """
     Subjective/Essay-type test created by admin
+    Can cover multiple chapters
     """
     title = models.CharField(max_length=255)
-    chapter = models.ForeignKey(QuizChapter, on_delete=models.CASCADE, related_name='unit_tests')
+    chapters = models.ManyToManyField(QuizChapter, related_name='unit_tests')
     description = models.TextField(blank=True)
     
     # Test settings
@@ -313,12 +314,19 @@ class UnitTest(models.Model):
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     
     def __str__(self):
-        return f"{self.title} - {self.chapter.chapter_name}"
+        chapter_names = ", ".join([ch.chapter_name for ch in self.chapters.all()[:3]])
+        if self.chapters.count() > 3:
+            chapter_names += "..."
+        return f"{self.title} - {chapter_names}"
+    
+    def get_chapters_display(self):
+        """Get formatted string of all chapters"""
+        return ", ".join([f"Ch{ch.chapter_number}" for ch in self.chapters.all().order_by('chapter_number')])
     
     class Meta:
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['chapter', 'is_active']),
+            models.Index(fields=['is_active', 'created_at']),
         ]
 
 
