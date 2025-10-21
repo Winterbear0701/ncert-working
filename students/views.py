@@ -751,3 +751,278 @@ def unit_test_results(request, attempt_id):
     }
     
     return render(request, 'students/unit_test_results.html', context)
+
+
+@login_required
+def smart_test_analysis(request):
+    """
+    Smart probability-based test analysis
+    Analyzes previous test papers and identifies important chapters/topics
+    Fast computation without chatbot format
+    """
+    from .test_analyzer import get_student_analysis
+    import json
+    
+    logger.info(f"📊 Smart Analysis requested by: {request.user.email}")
+    
+    try:
+        # Get comprehensive analysis
+        analysis_data = get_student_analysis(request.user)
+        
+        context = {
+            'analysis': analysis_data,
+            'analysis_json': json.dumps(analysis_data, default=str),  # For JS processing
+        }
+        
+        return render(request, 'students/smart_analysis.html', context)
+        
+    except Exception as e:
+        logger.error(f"Error in smart analysis: {str(e)}", exc_info=True)
+        context = {
+            'error': str(e),
+            'analysis': None,
+        }
+        return render(request, 'students/smart_analysis.html', context)
+
+
+@login_required
+def previous_papers_upload(request):
+    """
+    Upload previous year question papers (PDFs)
+    """
+    from .models import PreviousYearPaper
+    
+    if request.method == 'POST':
+        from django.core.files.storage import default_storage
+        import json
+        
+        try:
+            # Get form data
+            title = request.POST.get('title')
+            standard = request.POST.get('standard')
+            subject = request.POST.get('subject')
+            exam_type = request.POST.get('exam_type', 'Final Exam')
+            year = request.POST.get('year')
+            
+            # Get uploaded file
+            pdf_file = request.FILES.get('pdf_file')
+            
+            if not pdf_file:
+                return JsonResponse({'error': 'No file uploaded'}, status=400)
+            
+            # Validate PDF
+            if not pdf_file.name.endswith('.pdf'):
+                return JsonResponse({'error': 'Only PDF files are allowed'}, status=400)
+            
+            # Create paper record
+            paper = PreviousYearPaper.objects.create(
+                student=request.user,
+                title=title,
+                standard=standard,
+                subject=subject,
+                exam_type=exam_type,
+                year=year,
+                pdf_file=pdf_file,
+                status='uploaded'
+            )
+            
+            logger.info(f"📄 Paper uploaded: {title} by {request.user.email}")
+            
+            return JsonResponse({
+                'success': True,
+                'paper_id': paper.id,
+                'message': 'Paper uploaded successfully'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error uploading paper: {str(e)}")
+            return JsonResponse({'error': str(e)}, status=500)
+    
+    # GET request - show upload form
+    papers = PreviousYearPaper.objects.filter(student=request.user).order_by('-uploaded_at')
+    
+    context = {
+        'papers': papers,
+        'standards': ['10', '11', '12'],
+        'subjects': ['Mathematics', 'Science', 'Physics', 'Chemistry', 'Biology', 'English', 'Hindi'],
+    }
+    
+    return render(request, 'students/paper_upload.html', context)
+
+
+@login_required
+def analyze_papers(request):
+    """
+    Analyze uploaded papers using RAG
+    """
+    from .models import PreviousYearPaper, PaperAnalysis
+    from .paper_analyzer import PaperAnalyzer
+    import json
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    try:
+        paper_ids = request.POST.getlist('paper_ids[]')
+        available_days = int(request.POST.get('available_days', 30))
+        
+        if not paper_ids:
+            return JsonResponse({'error': 'No papers selected'}, status=400)
+        
+        logger.info(f"🔍 Analyzing {len(paper_ids)} papers for {request.user.email}")
+        
+        # Get papers
+        papers = PreviousYearPaper.objects.filter(
+            id__in=paper_ids,
+            student=request.user
+        )
+        
+        if not papers.exists():
+            return JsonResponse({'error': 'No valid papers found'}, status=404)
+        
+        # Initialize analyzer
+        analyzer = PaperAnalyzer()
+        
+        # Process each paper
+        all_questions = []
+        combined_chapter_scores = {}
+        
+        for paper in papers:
+            # Update status
+            paper.status = 'processing'
+            paper.save()
+            
+            # Get paper path
+            paper_path = paper.pdf_file.path
+            
+            # Process paper
+            result = analyzer.process_paper(
+                paper_path,
+                paper.standard,
+                paper.subject,
+                available_days
+            )
+            
+            if 'error' not in result:
+                # Update paper with extraction results
+                paper.extracted_text = result.get('extracted_text', '')
+                paper.total_questions = result.get('total_questions', 0)
+                paper.questions_list = result.get('questions_list', [])
+                paper.status = 'analyzed'
+                paper.processed_at = timezone.now()
+                paper.save()
+                
+                all_questions.extend(result.get('questions_list', []))
+                
+                # Merge chapter scores
+                for chapter, data in result.get('chapter_importance', {}).items():
+                    if chapter not in combined_chapter_scores:
+                        combined_chapter_scores[chapter] = {
+                            'frequency': 0,
+                            'total_marks': 0,
+                            'questions': [],
+                            'topics': set()
+                        }
+                    combined_chapter_scores[chapter]['frequency'] += data.get('frequency', 0)
+                    combined_chapter_scores[chapter]['total_marks'] += data.get('total_marks', 0)
+                    combined_chapter_scores[chapter]['questions'].extend(data.get('questions', []))
+                    combined_chapter_scores[chapter]['topics'].update(data.get('topics', []))
+            else:
+                paper.status = 'failed'
+                paper.save()
+                logger.error(f"Failed to process paper {paper.id}: {result.get('error')}")
+        
+        # Recalculate combined scores
+        analyzer._calculate_importance_scores(combined_chapter_scores, len(all_questions))
+        
+        # Sort chapters
+        sorted_chapters = sorted(
+            combined_chapter_scores.items(),
+            key=lambda x: x[1]['importance_score'],
+            reverse=True
+        )
+        
+        # Convert sets to lists for JSON
+        for chapter_data in combined_chapter_scores.values():
+            chapter_data['topics'] = list(chapter_data['topics'])
+        
+        # Generate study strategy
+        analysis_data = {
+            'chapter_importance': dict(sorted_chapters),
+            'total_questions': len(all_questions),
+            'priority_chapters': analyzer._get_priority_list(sorted_chapters, 10),
+        }
+        
+        strategy = analyzer.generate_study_strategy(analysis_data, available_days)
+        
+        # Create or update analysis record
+        analysis, created = PaperAnalysis.objects.update_or_create(
+            student=request.user,
+            standard=papers.first().standard,
+            subject=papers.first().subject,
+            defaults={
+                'chapter_importance': dict(sorted_chapters),
+                'topic_importance': {},
+                'priority_chapters': analysis_data['priority_chapters'],
+                'priority_topics': [],
+                'study_strategy': strategy,
+                'estimated_study_hours': strategy.get('daily_hours_needed', 0) * available_days,
+                'analysis_completed_at': timezone.now()
+            }
+        )
+        
+        # Add papers to analysis
+        analysis.papers.set(papers)
+        
+        logger.info(f"✅ Analysis complete for {request.user.email}")
+        
+        return JsonResponse({
+            'success': True,
+            'analysis_id': analysis.id,
+            'redirect_url': f'/students/papers/results/{analysis.id}/'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error analyzing papers: {str(e)}", exc_info=True)
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+@login_required
+def paper_analysis_results(request, analysis_id):
+    """
+    Display analysis results
+    """
+    from .models import PaperAnalysis
+    import json
+    
+    try:
+        analysis = PaperAnalysis.objects.get(
+            id=analysis_id,
+            student=request.user
+        )
+        
+        context = {
+            'analysis': analysis,
+            'papers': analysis.papers.all(),
+            'chapter_importance': analysis.chapter_importance,
+            'priority_chapters': analysis.priority_chapters,
+            'study_strategy': analysis.study_strategy,
+            'analysis_json': json.dumps({
+                'chapter_importance': analysis.chapter_importance,
+                'priority_chapters': analysis.priority_chapters,
+                'study_strategy': analysis.study_strategy,
+            }, default=str)
+        }
+        
+        return render(request, 'students/paper_analysis_results.html', context)
+        
+    except PaperAnalysis.DoesNotExist:
+        logger.error(f"Analysis {analysis_id} not found for {request.user.email}")
+        return render(request, 'students/paper_analysis_results.html', {
+            'error': 'Analysis not found'
+        })
+    except Exception as e:
+        logger.error(f"Error displaying results: {str(e)}", exc_info=True)
+        return render(request, 'students/paper_analysis_results.html', {
+            'error': str(e)
+        })

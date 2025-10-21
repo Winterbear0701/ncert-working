@@ -112,7 +112,7 @@
                 <i class="fas fa-bolt text-yellow-500 mr-2"></i>
                 Quick Actions
             </h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Start Chat -->
                 <a href="{% url 'students:chatbot_page' %}" 
                    class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in">
@@ -150,6 +150,23 @@
                     </div>
                     <h3 class="text-xl font-bold text-slate-900 mb-2">Unit Tests</h3>
                     <p class="text-slate-600 text-sm">Practice with NCERT unit tests for standards 5-10</p>
+                </a>
+                
+                <!-- Smart Analysis (NEW) -->
+                <a href="{% url 'students:previous_papers_upload' %}" 
+                   class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in relative overflow-hidden" style="animation-delay: 0.3s">
+                    <!-- New Badge -->
+                    <span class="absolute top-3 right-3 px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-600 text-white text-xs font-bold rounded-full animate-pulse">
+                        NEW
+                    </span>
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                            <i class="fas fa-file-pdf text-xl text-white"></i>
+                        </div>
+                        <i class="fas fa-arrow-right text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-900 mb-2">Paper Analyzer</h3>
+                    <p class="text-slate-600 text-sm">Upload previous papers & get AI-powered study plan</p>
                 </a>
             </div>
         </div>

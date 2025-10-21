@@ -9,6 +9,14 @@ urlpatterns = [
     path("chatbot/", views.chatbot_page, name="chatbot_page"),
     path("ask_chatbot/", views.ask_chatbot, name="ask_chatbot"),
     
+    # Smart Analysis
+    path("smart-analysis/", views.smart_test_analysis, name="smart_test_analysis"),
+    
+    # Previous Year Papers Analysis
+    path("papers/upload/", views.previous_papers_upload, name="previous_papers_upload"),
+    path("papers/analyze/", views.analyze_papers, name="analyze_papers"),
+    path("papers/results/<int:analysis_id>/", views.paper_analysis_results, name="paper_analysis_results"),
+    
     # Quiz URLs
     path("quiz/", quiz_views.quiz_dashboard, name="quiz_dashboard"),
     path("quiz/start/<str:chapter_id>/", quiz_views.start_quiz, name="start_quiz"),

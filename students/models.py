@@ -441,3 +441,88 @@ class UnitTestAnswer(models.Model):
     class Meta:
         ordering = ['attempt', 'question__question_number']
         unique_together = ['attempt', 'question']
+
+
+# ==================== PREVIOUS YEAR PAPER ANALYSIS ====================
+
+class PreviousYearPaper(models.Model):
+    """
+    Student uploads previous year question papers for analysis
+    """
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='uploaded_papers')
+    
+    # Paper details
+    title = models.CharField(max_length=255, help_text="e.g., 2023 Board Exam, Sample Paper 1")
+    standard = models.CharField(max_length=10, help_text="e.g., 10")
+    subject = models.CharField(max_length=100, help_text="e.g., Science, Mathematics")
+    exam_type = models.CharField(max_length=100, default="Board Exam", help_text="e.g., Board Exam, Sample Paper")
+    year = models.IntegerField(null=True, blank=True, help_text="Exam year")
+    
+    # File
+    pdf_file = models.FileField(upload_to='previous_year_papers/')
+    
+    # Processing status
+    STATUS_CHOICES = [
+        ('uploaded', 'Uploaded'),
+        ('processing', 'Processing'),
+        ('analyzed', 'Analyzed'),
+        ('failed', 'Failed'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='uploaded')
+    
+    # Extracted data
+    extracted_text = models.TextField(null=True, blank=True)
+    total_questions = models.IntegerField(default=0)
+    questions_list = models.JSONField(null=True, blank=True, help_text="Extracted questions")
+    
+    # Timestamps
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    processed_at = models.DateTimeField(null=True, blank=True)
+    
+    def __str__(self):
+        return f"{self.title} - {self.standard} {self.subject}"
+    
+    class Meta:
+        ordering = ['-uploaded_at']
+
+
+class PaperAnalysis(models.Model):
+    """
+    Analysis results for uploaded previous year papers
+    Fast probability-based analysis using RAG
+    """
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='paper_analyses')
+    
+    # Papers included in analysis
+    papers = models.ManyToManyField(PreviousYearPaper, related_name='analyses')
+    
+    # Analysis parameters
+    standard = models.CharField(max_length=10)
+    subject = models.CharField(max_length=100)
+    total_papers_analyzed = models.IntegerField(default=0)
+    total_questions_analyzed = models.IntegerField(default=0)
+    
+    # Analysis results (JSON format for fast access)
+    chapter_importance = models.JSONField(default=dict, help_text="Chapter-wise importance scores")
+    topic_importance = models.JSONField(default=dict, help_text="Topic-wise importance scores")
+    question_frequency = models.JSONField(default=dict, help_text="Question type frequency")
+    
+    # Recommendations
+    priority_chapters = models.JSONField(default=list, help_text="Top priority chapters to study")
+    priority_topics = models.JSONField(default=list, help_text="Top priority topics")
+    study_strategy = models.JSONField(default=dict, help_text="Personalized study strategy")
+    
+    # Study time estimates
+    estimated_study_hours = models.FloatField(default=0, help_text="Estimated hours needed")
+    
+    # Metadata
+    analysis_completed_at = models.DateTimeField(auto_now_add=True)
+    processing_time_seconds = models.FloatField(default=0)
+    
+    def __str__(self):
+        return f"Analysis for {self.student.email} - {self.standard} {self.subject}"
+    
+    class Meta:
+        ordering = ['-analysis_completed_at']
+        verbose_name_plural = "Paper Analyses"
+
