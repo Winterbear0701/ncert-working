@@ -1,0 +1,234 @@
+{% extends 'base_new.html' %}
+{% load static %}
+
+{% block title %}Student Analytics - Admin{% endblock %}
+
+{% block extra_css %}
+<style>
+    .student-card {
+        transition: all 0.3s ease;
+        animation: fadeIn 0.5s ease-out;
+    }
+    .student-card:hover {
+        transform: translateY(-3px);
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .stat-badge {
+        transition: all 0.2s ease;
+    }
+    .stat-badge:hover {
+        transform: scale(1.1);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <!-- Header -->
+        <div class="mb-8">
+            <div class="bg-white rounded-xl shadow-lg p-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 class="text-4xl font-bold text-gray-900 mb-2">
+                            <i class="fas fa-chart-line text-purple-600 mr-2"></i>
+                            Student Analytics
+                        </h1>
+                        <p class="text-gray-600">Performance overview for all students</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <a href="{% url 'superadmin:dashboard' %}" 
+                           class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-all flex items-center gap-2">
+                            <i class="fas fa-arrow-left"></i>
+                            <span class="font-semibold">Back to Dashboard</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-blue-100 rounded-lg">
+                        <i class="fas fa-users text-3xl text-blue-600"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 font-semibold">Total Students</p>
+                        <p class="text-3xl font-bold text-gray-900">{{ student_data|length }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-green-100 rounded-lg">
+                        <i class="fas fa-clipboard-check text-3xl text-green-600"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 font-semibold">MCQ Tests</p>
+                        <p class="text-3xl font-bold text-gray-900">
+                            {% widthratio student_data|length 1 1 as total %}
+                            {{ total }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-purple-100 rounded-lg">
+                        <i class="fas fa-file-alt text-3xl text-purple-600"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 font-semibold">Unit Tests</p>
+                        <p class="text-3xl font-bold text-gray-900">
+                            {% widthratio student_data|length 1 1 as total %}
+                            {{ total }}
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-orange-100 rounded-lg">
+                        <i class="fas fa-chart-bar text-3xl text-orange-600"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-600 font-semibold">Avg Performance</p>
+                        <p class="text-3xl font-bold text-gray-900">
+                            {% if student_data %}
+                                {% widthratio student_data.0.mcq_avg_score 1 1 %}%
+                            {% else %}
+                                0%
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Students Table -->
+        {% if student_data %}
+        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="p-6 border-b border-gray-200">
+                <h2 class="text-2xl font-bold text-gray-900">
+                    <i class="fas fa-table text-blue-600 mr-2"></i>
+                    Student Performance Details
+                </h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                        <tr>
+                            <th class="px-6 py-4 text-left text-sm font-semibold">
+                                <i class="fas fa-user mr-2"></i>Student
+                            </th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold">
+                                <i class="fas fa-clipboard-check mr-2"></i>MCQ Tests
+                            </th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold">
+                                <i class="fas fa-percentage mr-2"></i>MCQ Avg Score
+                            </th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold">
+                                <i class="fas fa-file-alt mr-2"></i>Unit Tests
+                            </th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold">
+                                <i class="fas fa-star mr-2"></i>Unit Test Avg
+                            </th>
+                            <th class="px-6 py-4 text-center text-sm font-semibold">
+                                <i class="fas fa-cog mr-2"></i>Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200">
+                        {% for data in student_data %}
+                        <tr class="student-card hover:bg-blue-50">
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold">
+                                        {{ data.student.email.0|upper }}
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-gray-900">{{ data.student.email }}</p>
+                                        <p class="text-xs text-gray-500">
+                                            <i class="fas fa-envelope mr-1"></i>{{ data.student.email }}
+                                        </p>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
+                                    <i class="fas fa-list-ol mr-1"></i>
+                                    {{ data.mcq_total }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold 
+                                    {% if data.mcq_avg_score >= 80 %}bg-green-100 text-green-800
+                                    {% elif data.mcq_avg_score >= 60 %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                    <i class="fas fa-chart-line mr-1"></i>
+                                    {{ data.mcq_avg_score }}%
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-purple-100 text-purple-800">
+                                    <i class="fas fa-clipboard-list mr-1"></i>
+                                    {{ data.unit_test_total }}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold 
+                                    {% if data.unit_test_avg_score >= 80 %}bg-green-100 text-green-800
+                                    {% elif data.unit_test_avg_score >= 60 %}bg-yellow-100 text-yellow-800
+                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                    <i class="fas fa-trophy mr-1"></i>
+                                    {{ data.unit_test_avg_score }}%
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <a href="{% url 'superadmin:student_detail_analytics' data.student.id %}" 
+                                   class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-sm font-semibold transform hover:scale-105">
+                                    <i class="fas fa-eye mr-2"></i>
+                                    View Details
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <!-- Empty State -->
+        <div class="bg-white rounded-xl shadow-lg p-16 text-center border-2 border-dashed border-gray-300">
+            <div class="inline-block p-6 bg-purple-50 rounded-full mb-6">
+                <svg class="w-24 h-24 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                </svg>
+            </div>
+            <h3 class="text-2xl font-bold text-gray-900 mb-3">
+                <i class="fas fa-users text-purple-500 mr-2"></i>
+                No Student Data Available
+            </h3>
+            <p class="text-gray-600 mb-8 max-w-md mx-auto">
+                There are no students with test attempts yet. Students will appear here after they complete their first quiz or unit test.
+            </p>
+            <a href="{% url 'superadmin:dashboard' %}" 
+               class="inline-block px-8 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl transform hover:scale-105 font-semibold">
+                <i class="fas fa-arrow-left mr-2"></i>
+                Back to Dashboard
+            </a>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}
