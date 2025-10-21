@@ -165,6 +165,90 @@
         </div>
     </div>
     
+    <!-- Student Analytics Overview -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
+        <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center">
+            <div class="w-1 h-8 bg-gradient-to-b from-purple-600 to-indigo-600 rounded-full mr-3"></div>
+            Student Analytics Overview
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            <!-- Total Students Card -->
+            <div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-slate-600 mb-1">Total Students</p>
+                            <p class="text-3xl font-bold text-slate-900">{{ total_students }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-users text-white text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-xs text-slate-500">Registered in system</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- MCQ Attempts Card -->
+            <div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-slate-600 mb-1">MCQ Attempts</p>
+                            <p class="text-3xl font-bold text-slate-900">{{ total_mcq_attempts }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-check-square text-white text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-xs text-slate-500">{{ students_attempted_mcq }} student{{ students_attempted_mcq|pluralize }} participated</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Unit Test Attempts Card -->
+            <div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-slate-600 mb-1">Unit Test Attempts</p>
+                            <p class="text-3xl font-bold text-slate-900">{{ total_unit_test_attempts }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-file-alt text-white text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-xs text-slate-500">{{ students_attempted_unit_test }} student{{ students_attempted_unit_test|pluralize }} participated</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat Sessions Card -->
+            <div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-slate-600 mb-1">AI Tutor Sessions</p>
+                            <p class="text-3xl font-bold text-slate-900">{{ total_chat_sessions }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-robot text-white text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <p class="text-xs text-slate-500">{{ students_used_chat }} student{{ students_used_chat|pluralize }} used AI Tutor</p>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+    
     <!-- Quick Action Cards with Book Images -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-12">
         <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center">

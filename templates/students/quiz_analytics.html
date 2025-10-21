@@ -1,5 +1,4 @@
-45{% extends 'base_new.html' %}
-{% load quiz_filters %}
+{% extends 'base_new.html' %}
 
 {% block title %}Quiz Analytics - {{ chapter.chapter_name }}{% endblock %}
 
@@ -190,21 +189,15 @@
                         <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900">{{ topic }}</td>
                         {% for attempt in attempts %}
                         <td class="px-6 py-4 whitespace-nowrap text-center">
-                            {% if topic in attempt.topic_performance %}
-                            <span class="px-3 py-1 rounded-full text-sm font-medium"
-                                  style="background-color: {% if attempt.topic_performance|get_item:topic|get_item:'percentage' >= 80 %}#d1fae5{% elif attempt.topic_performance|get_item:topic|get_item:'percentage' >= 60 %}#fef3c7{% else %}#fee2e2{% endif %}; 
-                                         color: {% if attempt.topic_performance|get_item:topic|get_item:'percentage' >= 80 %}#065f46{% elif attempt.topic_performance|get_item:topic|get_item:'percentage' >= 60 %}#92400e{% else %}#991b1b{% endif %}">
-                                {{ attempt.topic_performance|get_item:topic|get_item:'percentage'|floatformat:0 }}%
-                            </span>
-                            {% else %}
-                            <span class="text-gray-400">-</span>
-                            {% endif %}
+                            <span class="text-gray-400 text-sm">-</span>
                         </td>
                         {% endfor %}
                         <td class="px-6 py-4 whitespace-nowrap text-center">
-                            <span class="px-3 py-1 rounded-full text-sm font-bold"
-                                  style="background-color: {% if avg >= 80 %}#d1fae5{% elif avg >= 60 %}#fef3c7{% else %}#fee2e2{% endif %}; 
-                                         color: {% if avg >= 80 %}#065f46{% elif avg >= 60 %}#92400e{% else %}#991b1b{% endif %}">
+                            <span class="inline-flex items-center px-4 py-2 rounded-xl text-sm font-bold shadow-lg
+                                {% if avg >= 80 %}bg-gradient-to-r from-green-400 to-emerald-500 text-white
+                                {% elif avg >= 60 %}bg-gradient-to-r from-yellow-400 to-amber-500 text-white
+                                {% else %}bg-gradient-to-r from-red-400 to-rose-500 text-white{% endif %}">
+                                <i class="fas fa-{% if avg >= 80 %}star{% elif avg >= 60 %}smile{% else %}meh{% endif %} mr-2"></i>
                                 {{ avg|floatformat:0 }}%
                             </span>
                         </td>

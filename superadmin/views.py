@@ -18,6 +18,12 @@ def dashboard(request):
     """
     Superadmin dashboard with statistics
     """
+    from django.contrib.auth import get_user_model
+    from students.models import QuizAttempt, UnitTestAttempt, ChatHistory
+    
+    User = get_user_model()
+    
+    # Book Upload Statistics
     total_uploads = UploadedBook.objects.count()
     queued = UploadedBook.objects.filter(status='queued').count()
     processing = UploadedBook.objects.filter(status='processing').count()
@@ -26,13 +32,38 @@ def dashboard(request):
     
     recent_uploads = UploadedBook.objects.all().order_by('-uploaded_at')[:10]
     
+    # Student Analytics Statistics
+    total_students = User.objects.filter(role='student').count()
+    
+    # MCQ Statistics - count unique students who completed at least one quiz
+    total_mcq_attempts = QuizAttempt.objects.filter(status='completed').count()
+    students_attempted_mcq = QuizAttempt.objects.filter(status='completed').values('student').distinct().count()
+    
+    # Unit Test Statistics - count unique students who completed at least one test
+    total_unit_test_attempts = UnitTestAttempt.objects.filter(status='evaluated').count()
+    students_attempted_unit_test = UnitTestAttempt.objects.filter(status='evaluated').values('student').distinct().count()
+    
+    # Chat/AI Tutor Statistics
+    total_chat_sessions = ChatHistory.objects.count()
+    students_used_chat = ChatHistory.objects.values('student').distinct().count()
+    
     context = {
+        # Book stats
         'total_uploads': total_uploads,
         'queued': queued,
         'processing': processing,
         'completed': completed,
         'failed': failed,
         'recent_uploads': recent_uploads,
+        
+        # Student stats
+        'total_students': total_students,
+        'total_mcq_attempts': total_mcq_attempts,
+        'students_attempted_mcq': students_attempted_mcq,
+        'total_unit_test_attempts': total_unit_test_attempts,
+        'students_attempted_unit_test': students_attempted_unit_test,
+        'total_chat_sessions': total_chat_sessions,
+        'students_used_chat': students_used_chat,
     }
     
     return render(request, 'superadmin/dashboard.html', context)
@@ -489,7 +520,7 @@ def student_analytics(request):
     """
     from django.contrib.auth import get_user_model
     from students.models import QuizAttempt, UnitTestAttempt, QuizChapter
-    from django.db.models import Count, Avg, Q
+    from django.db.models import Count, Avg, Q, Sum
     
     User = get_user_model()
     
@@ -501,15 +532,26 @@ def student_analytics(request):
     student_data = []
     
     for student in students:
-        # MCQ Statistics
+        # MCQ Statistics - Only count completed quizzes
         mcq_attempts = QuizAttempt.objects.filter(student=student, status='completed')
         mcq_total = mcq_attempts.count()
         mcq_avg_score = mcq_attempts.aggregate(Avg('score_percentage'))['score_percentage__avg'] or 0
         
-        # Unit Test Statistics
+        # Unit Test Statistics - Only count evaluated tests
         unit_test_attempts = UnitTestAttempt.objects.filter(student=student, status='evaluated')
         unit_test_total = unit_test_attempts.count()
         unit_test_avg_score = unit_test_attempts.aggregate(Avg('overall_score'))['overall_score__avg'] or 0
+        
+        # Overall Performance Score (weighted average)
+        # If student has both MCQ and unit tests, weight equally
+        # If only one type exists, use that
+        overall_performance = 0
+        if mcq_total > 0 and unit_test_total > 0:
+            overall_performance = (mcq_avg_score + unit_test_avg_score) / 2
+        elif mcq_total > 0:
+            overall_performance = mcq_avg_score
+        elif unit_test_total > 0:
+            overall_performance = unit_test_avg_score
         
         student_data.append({
             'student': student,
@@ -517,13 +559,27 @@ def student_analytics(request):
             'mcq_avg_score': round(mcq_avg_score, 2),
             'unit_test_total': unit_test_total,
             'unit_test_avg_score': round(unit_test_avg_score, 2),
+            'overall_performance': round(overall_performance, 2),
         })
     
+    # Sort by overall performance (descending)
+    student_data.sort(key=lambda x: x['overall_performance'], reverse=True)
+    
     chapters = QuizChapter.objects.all().order_by('chapter_number')
+    
+    # Summary statistics
+    total_students = len(student_data)
+    students_with_mcq = sum(1 for s in student_data if s['mcq_total'] > 0)
+    students_with_unit_test = sum(1 for s in student_data if s['unit_test_total'] > 0)
+    avg_overall_performance = sum(s['overall_performance'] for s in student_data) / total_students if total_students > 0 else 0
     
     context = {
         'student_data': student_data,
         'chapters': chapters,
+        'total_students': total_students,
+        'students_with_mcq': students_with_mcq,
+        'students_with_unit_test': students_with_unit_test,
+        'avg_overall_performance': round(avg_overall_performance, 2),
     }
     
     return render(request, 'superadmin/student_analytics.html', context)
