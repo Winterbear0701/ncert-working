@@ -136,28 +136,9 @@ OUTPUT FORMAT (JSON):
 
 Return ONLY the JSON array."""
         
-        # Try OpenAI
-        if openai.api_key:
-            try:
-                response = openai.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You are an expert at converting textbook questions to MCQs. Output only valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=4000
-                )
-                result_text = response.choices[0].message.content
-                logger.info("✅ OpenAI converted textbook questions to MCQs")
-            except Exception as e:
-                logger.error(f"OpenAI error: {e}")
-                result_text = None
-        else:
-            result_text = None
-        
-        # Fallback to Gemini
-        if not result_text and gemini_api_key:
+        # Use Gemini (primary)
+        result_text = None
+        if gemini_api_key:
             try:
                 model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 response = model.generate_content(prompt)
@@ -248,6 +229,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
             defaults={
                 'class_number': f"Class {class_num}",
                 'subject': subject,
+                'chapter_number': chapter_order,
                 'chapter_name': chapter_name,
                 'chapter_order': chapter_order,
                 'total_questions': len(mcq_data),

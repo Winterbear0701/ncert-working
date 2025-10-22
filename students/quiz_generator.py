@@ -226,28 +226,9 @@ OUTPUT FORMAT (STRICT JSON):
 
 Generate EXACTLY 10 questions. Return ONLY the JSON array, no other text."""
 
-        # Try OpenAI first
-        if openai.api_key:
-            try:
-                response = openai.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": "You are an expert NCERT question generator. Output only valid JSON."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=4000
-                )
-                result_text = response.choices[0].message.content
-                logger.info("✅ OpenAI generated quiz questions")
-            except Exception as e:
-                logger.error(f"OpenAI error: {e}")
-                result_text = None
-        else:
-            result_text = None
-        
-        # Fallback to Gemini
-        if not result_text and gemini_api_key:
+        # Use Gemini (primary)
+        result_text = None
+        if gemini_api_key:
             try:
                 model = genai.GenerativeModel('gemini-2.0-flash-exp')
                 response = model.generate_content(prompt)

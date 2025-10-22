@@ -15,7 +15,7 @@ def register_view(request):
             login(request, user)
             
             # Always redirect students to their dashboard
-            return redirect("student_dashboard")
+            return redirect("students:student_dashboard")
     else:
         form = CustomUserCreationForm()
 

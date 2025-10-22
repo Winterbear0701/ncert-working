@@ -139,6 +139,7 @@ def process_uploaded_book_sync(uploaded_book_id):
     Synchronous version: Process uploaded PDF immediately without Celery
     Enhanced with subject-aware extraction and ChromaDB with proper labeling
     Storage format: Class X, Subject: Y, Chapter: Z
+    AUTOMATICALLY GENERATES MCQs after successful upload
     """
     logger.info(f"Processing upload ID: {uploaded_book_id} (SYNC)")
     
@@ -177,9 +178,45 @@ def process_uploaded_book_sync(uploaded_book_id):
             batch_size=100
         )
         
+        # ==================== AUTO-GENERATE MCQs ====================
+        logger.info(f"🎯 Auto-generating MCQs for uploaded chapter...")
+        try:
+            from students.improved_quiz_generator import generate_quiz_with_textbook_questions
+            
+            # Create chapter_id in format: class_X_subject_chapter_Y
+            chapter_num = book_obj.chapter.replace('Chapter', '').replace('chapter', '').strip()
+            chapter_id = f"class_{book_obj.standard}_{book_obj.subject.lower().replace(' ', '_')}_chapter_{chapter_num}"
+            
+            # Get chapter order (count existing chapters + 1)
+            from students.models import QuizChapter
+            existing_chapters = QuizChapter.objects.filter(
+                class_number=book_obj.standard,
+                subject=book_obj.subject
+            ).count()
+            chapter_order = existing_chapters + 1
+            
+            # Generate quiz
+            quiz_result = generate_quiz_with_textbook_questions(
+                chapter_id=chapter_id,
+                class_num=book_obj.standard,
+                subject=book_obj.subject,
+                chapter_name=book_obj.chapter,
+                chapter_order=chapter_order
+            )
+            
+            if quiz_result.get('status') == 'success':
+                logger.info(f"✅ Successfully auto-generated {quiz_result.get('questions_generated', 0)} MCQs!")
+                book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Auto-generated {quiz_result.get('questions_generated', 0)} MCQs."
+            else:
+                logger.warning(f"⚠️ Quiz generation completed with warnings: {quiz_result.get('message', 'Unknown')}")
+                book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Quiz generation: {quiz_result.get('message', 'Partial success')}"
+                
+        except Exception as quiz_error:
+            logger.error(f"❌ Error generating MCQs (upload still successful): {str(quiz_error)}")
+            book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Note: MCQ auto-generation failed - run 'python manage.py generate_quizzes' manually."
+        
         # Mark as complete
         book_obj.status = 'done'
-        book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages"
         book_obj.save()
         
         logger.info(f"✅ Successfully processed upload {uploaded_book_id}: {total_added} chunks")
@@ -217,6 +254,7 @@ def process_uploaded_book(self, uploaded_book_id):
     Celery async version: Process uploaded PDF in background
     Enhanced with subject-aware extraction and ChromaDB with proper labeling
     Storage format: Class X, Subject: Y, Chapter: Z
+    AUTOMATICALLY GENERATES MCQs after successful upload
     (Use this when Celery is running, otherwise use process_uploaded_book_sync)
     """
     logger.info(f"Processing upload ID: {uploaded_book_id} (ASYNC)")
@@ -265,12 +303,54 @@ def process_uploaded_book(self, uploaded_book_id):
         # Update progress
         self.update_state(
             state='PROGRESS',
+            meta={'current': total_added, 'total': len(chunks), 'percent': 80, 'status': 'Generating MCQs'}
+        )
+        
+        # ==================== AUTO-GENERATE MCQs ====================
+        logger.info(f"🎯 Auto-generating MCQs for uploaded chapter...")
+        try:
+            from students.improved_quiz_generator import generate_quiz_with_textbook_questions
+            
+            # Create chapter_id in format: class_X_subject_chapter_Y
+            chapter_num = book_obj.chapter.replace('Chapter', '').replace('chapter', '').strip()
+            chapter_id = f"class_{book_obj.standard}_{book_obj.subject.lower().replace(' ', '_')}_chapter_{chapter_num}"
+            
+            # Get chapter order (count existing chapters + 1)
+            from students.models import QuizChapter
+            existing_chapters = QuizChapter.objects.filter(
+                class_number=book_obj.standard,
+                subject=book_obj.subject
+            ).count()
+            chapter_order = existing_chapters + 1
+            
+            # Generate quiz
+            quiz_result = generate_quiz_with_textbook_questions(
+                chapter_id=chapter_id,
+                class_num=book_obj.standard,
+                subject=book_obj.subject,
+                chapter_name=book_obj.chapter,
+                chapter_order=chapter_order
+            )
+            
+            if quiz_result.get('status') == 'success':
+                logger.info(f"✅ Successfully auto-generated {quiz_result.get('questions_generated', 0)} MCQs!")
+                book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Auto-generated {quiz_result.get('questions_generated', 0)} MCQs."
+            else:
+                logger.warning(f"⚠️ Quiz generation completed with warnings: {quiz_result.get('message', 'Unknown')}")
+                book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Quiz generation: {quiz_result.get('message', 'Partial success')}"
+                
+        except Exception as quiz_error:
+            logger.error(f"❌ Error generating MCQs (upload still successful): {str(quiz_error)}")
+            book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Note: MCQ auto-generation failed - run 'python manage.py generate_quizzes' manually."
+        
+        # Update progress
+        self.update_state(
+            state='PROGRESS',
             meta={'current': total_added, 'total': len(chunks), 'percent': 100}
         )
         
         # Mark as complete
         book_obj.status = 'done'
-        book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages"
         book_obj.save()
         
         logger.info(f"✅ Successfully processed upload {uploaded_book_id}: {total_added} chunks")
