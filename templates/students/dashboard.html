@@ -4,10 +4,10 @@
 
 {% block content %}
 <!-- Modern Elegant Student Dashboard -->
-<div class="min-h-screen">
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
     
     <!-- Elegant Hero Header -->
-    <div class="relative overflow-hidden bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 text-white mb-8">
+    <div class="relative overflow-hidden bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 text-white">
         <!-- Subtle Pattern Overlay -->
         <div class="absolute inset-0 opacity-5">
             <svg width="100%" height="100%">
@@ -21,164 +21,220 @@
             </svg>
         </div>
         
-        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div class="flex items-center justify-between">
                 <div class="space-y-2 fade-in">
                     <div class="flex items-center space-x-3">
-                        <div class="w-14 h-14 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl">
-                            <i class="fas fa-user-graduate text-2xl text-white"></i>
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-400 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl transform rotate-3">
+                            <i class="fas fa-user-graduate text-3xl text-white transform -rotate-3"></i>
                         </div>
                         <div>
-                            <h1 class="text-3xl md:text-4xl font-bold">Welcome back, {{ user.username }}!</h1>
-                            <p class="text-blue-200 text-sm md:text-base">Ready to continue your learning journey?</p>
+                            <h1 class="text-4xl md:text-5xl font-bold tracking-tight">
+                                Welcome back, {{ user.username }}!
+                            </h1>
+                            <p class="text-blue-200 text-lg mt-1">Your personal learning dashboard</p>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Floating Book Illustration -->
-                <div class="hidden md:block animate-float">
-                    <i class="fas fa-book-reader text-6xl text-blue-300 opacity-50"></i>
+                <!-- Decorative Book Illustration -->
+                <div class="hidden lg:block">
+                    <div class="relative w-48 h-48">
+                        <img src="https://cdn-icons-png.flaticon.com/512/2702/2702154.png" 
+                             alt="Books" 
+                             class="w-full h-full object-contain opacity-80 animate-float"
+                             onerror="this.style.display='none'"/>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <!-- Wave Divider -->
-        <div class="relative">
-            <svg class="w-full h-12" viewBox="0 0 1200 120" preserveAspectRatio="none">
-                <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" fill="rgb(248 250 252)"></path>
+        <!-- Smooth Wave Transition -->
+        <div class="absolute bottom-0 left-0 w-full overflow-hidden leading-none">
+            <svg class="relative block w-full h-12" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z" 
+                      class="fill-slate-50"></path>
             </svg>
         </div>
     </div>
     
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <!-- Quick Stats -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <!-- Modern Stats Cards -->
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-10 mb-12">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <!-- Total Chats Card -->
-            <div class="bg-white rounded-2xl shadow-lg p-6 fade-in transform hover:scale-105 transition-all duration-300 hover:shadow-2xl group">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                        <i class="fas fa-comments text-2xl text-white"></i>
+            <div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-slate-600 mb-1">Total Chats</p>
+                            <p class="text-3xl font-bold text-slate-900">{{ total_chats }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-comments text-white text-xl"></i>
+                        </div>
                     </div>
-                    <div class="text-right">
-                        <p class="text-slate-500 text-xs font-semibold uppercase tracking-wide">Total Chats</p>
-                        <p class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">{{ total_chats }}</p>
+                    <div class="mt-4 flex items-center">
+                        <div class="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-full rounded-full" style="width: 100%"></div>
+                        </div>
                     </div>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
-                    <div class="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full" style="width: {% if total_chats > 0 %}{{ total_chats|add:0|floatformat:0 }}{% else %}0{% endif %}%"></div>
                 </div>
             </div>
             
             <!-- Standard Card -->
-            <div class="bg-white rounded-2xl shadow-lg p-6 fade-in transform hover:scale-105 transition-all duration-300 hover:shadow-2xl group" style="animation-delay: 0.1s">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                        <i class="fas fa-graduation-cap text-2xl text-white"></i>
+            <div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-slate-600 mb-1">Your Standard</p>
+                            <p class="text-3xl font-bold text-slate-900">{{ user.standard|default:"N/A" }}</p>
+                        </div>
+                        <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-graduation-cap text-white text-xl"></i>
+                        </div>
                     </div>
-                    <div class="text-right">
-                        <p class="text-slate-500 text-xs font-semibold uppercase tracking-wide">Your Standard</p>
-                        <p class="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-green-600 bg-clip-text text-transparent">{{ user.standard|default:"N/A" }}</p>
+                    <div class="mt-4 flex items-center">
+                        <div class="flex-1 bg-slate-100 rounded-full h-2 overflow-hidden">
+                            <div class="bg-gradient-to-r from-emerald-500 to-green-600 h-full rounded-full" style="width: 85%"></div>
+                        </div>
                     </div>
-                </div>
-                <div class="w-full bg-slate-100 rounded-full h-2">
-                    <div class="bg-gradient-to-r from-emerald-500 to-green-600 h-2 rounded-full" style="width: 85%"></div>
                 </div>
             </div>
             
             <!-- AI Tutor Card -->
-            <div class="bg-white rounded-2xl shadow-lg p-6 fade-in transform hover:scale-105 transition-all duration-300 hover:shadow-2xl group" style="animation-delay: 0.2s">
-                <div class="flex items-center justify-between mb-4">
-                    <div class="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                        <i class="fas fa-robot text-2xl text-white"></i>
+            <div class="group bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100">
+                <div class="p-6">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1">
+                            <p class="text-sm font-medium text-slate-600 mb-1">AI Tutor</p>
+                            <p class="text-3xl font-bold text-slate-900">24/7</p>
+                        </div>
+                        <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-robot text-white text-xl"></i>
+                        </div>
                     </div>
-                    <div class="text-right">
-                        <p class="text-slate-500 text-xs font-semibold uppercase tracking-wide">AI Tutor</p>
-                        <p class="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">24/7 Online</p>
+                    <div class="mt-4 flex items-center">
+                        <span class="relative flex h-3 w-3 mr-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                        </span>
+                        <span class="text-xs text-slate-600 font-medium">Available Now</span>
                     </div>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <span class="relative flex h-3 w-3">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                    </span>
-                    <span class="text-xs text-slate-600 font-medium">Available Now</span>
                 </div>
             </div>
         </div>
+    </div>
+    
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         <!-- Quick Actions -->
-        <div class="mb-8">
+        <div class="mb-12">
             <h2 class="text-2xl font-bold text-slate-900 mb-6 flex items-center">
-                <i class="fas fa-bolt text-yellow-500 mr-2"></i>
+                <div class="w-1 h-8 bg-gradient-to-b from-blue-600 to-indigo-600 rounded-full mr-3"></div>
                 Quick Actions
             </h2>
+            
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Start Chat -->
                 <a href="{% url 'students:chatbot_page' %}" 
-                   class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                            <i class="fas fa-comments text-xl text-white"></i>
-                        </div>
-                        <i class="fas fa-arrow-right text-slate-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all"></i>
+                   class="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100 transform hover:-translate-y-1">
+                    <!-- Book Image Background -->
+                    <div class="absolute top-0 right-0 w-32 h-32 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <img src="https://cdn-icons-png.flaticon.com/512/2702/2702134.png" alt="" class="w-full h-full object-contain">
                     </div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-2">Start Chat</h3>
-                    <p class="text-slate-600 text-sm">Ask your AI tutor any question about your studies</p>
+                    
+                    <div class="relative p-6">
+                        <div class="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-comments text-2xl text-white"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 mb-2">Start Chat</h3>
+                        <p class="text-slate-600 text-sm mb-4">Ask your AI tutor any question</p>
+                        <div class="flex items-center text-blue-600 font-semibold text-sm group-hover:text-blue-700">
+                            <span>Chat Now</span>
+                            <i class="fas fa-arrow-right ml-2 group-hover:translate-x-2 transition-transform"></i>
+                        </div>
+                    </div>
                 </a>
                 
                 <!-- Take Quiz -->
                 <a href="{% url 'students:quiz_dashboard' %}" 
-                   class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in" style="animation-delay: 0.1s">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="w-12 h-12 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
-                            <i class="fas fa-clipboard-check text-xl text-white"></i>
-                        </div>
-                        <i class="fas fa-arrow-right text-slate-400 group-hover:text-orange-600 group-hover:translate-x-1 transition-all"></i>
+                   class="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100 transform hover:-translate-y-1">
+                    <div class="absolute top-0 right-0 w-32 h-32 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <img src="https://cdn-icons-png.flaticon.com/512/3330/3330326.png" alt="" class="w-full h-full object-contain">
                     </div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-2">Take Quiz</h3>
-                    <p class="text-slate-600 text-sm">Test your knowledge with interactive quizzes</p>
+                    
+                    <div class="relative p-6">
+                        <div class="w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-clipboard-check text-2xl text-white"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 mb-2">Take Quiz</h3>
+                        <p class="text-slate-600 text-sm mb-4">Test your knowledge interactively</p>
+                        <div class="flex items-center text-orange-600 font-semibold text-sm group-hover:text-orange-700">
+                            <span>Start Quiz</span>
+                            <i class="fas fa-arrow-right ml-2 group-hover:translate-x-2 transition-transform"></i>
+                        </div>
+                    </div>
                 </a>
                 
                 <!-- Unit Tests -->
                 <a href="{% url 'students:unit_test_list' %}" 
-                   class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in" style="animation-delay: 0.2s">
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="w-12 h-12 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center shadow-lg">
-                            <i class="fas fa-file-alt text-xl text-white"></i>
-                        </div>
-                        <i class="fas fa-arrow-right text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all"></i>
+                   class="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100 transform hover:-translate-y-1">
+                    <div class="absolute top-0 right-0 w-32 h-32 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <img src="https://cdn-icons-png.flaticon.com/512/3176/3176396.png" alt="" class="w-full h-full object-contain">
                     </div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-2">Unit Tests</h3>
-                    <p class="text-slate-600 text-sm">Practice with NCERT unit tests for standards 5-10</p>
+                    
+                    <div class="relative p-6">
+                        <div class="w-14 h-14 bg-gradient-to-br from-emerald-500 to-green-600 rounded-xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-file-alt text-2xl text-white"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 mb-2">Unit Tests</h3>
+                        <p class="text-slate-600 text-sm mb-4">Practice with NCERT tests</p>
+                        <div class="flex items-center text-emerald-600 font-semibold text-sm group-hover:text-emerald-700">
+                            <span>Take Test</span>
+                            <i class="fas fa-arrow-right ml-2 group-hover:translate-x-2 transition-transform"></i>
+                        </div>
+                    </div>
                 </a>
                 
-                <!-- Smart Analysis (NEW) -->
+                <!-- Paper Analyzer (NEW) -->
                 <a href="{% url 'students:previous_papers_upload' %}" 
-                   class="block bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group fade-in relative overflow-hidden" style="animation-delay: 0.3s">
+                   class="group relative bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-slate-100 transform hover:-translate-y-1">
                     <!-- New Badge -->
                     <span class="absolute top-3 right-3 px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-600 text-white text-xs font-bold rounded-full animate-pulse">
                         NEW
                     </span>
-                    <div class="flex items-start justify-between mb-4">
-                        <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
-                            <i class="fas fa-file-pdf text-xl text-white"></i>
-                        </div>
-                        <i class="fas fa-arrow-right text-slate-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all"></i>
+                    <div class="absolute top-0 right-0 w-32 h-32 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <img src="https://cdn-icons-png.flaticon.com/512/2920/2920277.png" alt="" class="w-full h-full object-contain">
                     </div>
-                    <h3 class="text-xl font-bold text-slate-900 mb-2">Paper Analyzer</h3>
-                    <p class="text-slate-600 text-sm">Upload previous papers & get AI-powered study plan</p>
+                    
+                    <div class="relative p-6">
+                        <div class="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
+                            <i class="fas fa-file-pdf text-2xl text-white"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-slate-900 mb-2">Paper Analyzer</h3>
+                        <p class="text-slate-600 text-sm mb-4">AI-powered exam preparation</p>
+                        <div class="flex items-center text-purple-600 font-semibold text-sm group-hover:text-purple-700">
+                            <span>Analyze Now</span>
+                            <i class="fas fa-arrow-right ml-2 group-hover:translate-x-2 transition-transform"></i>
+                        </div>
+                    </div>
                 </a>
             </div>
         </div>
         
         <!-- Recent Chats -->
-        <div class="bg-white rounded-2xl shadow-lg overflow-hidden fade-in mb-8">
-            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4 backdrop-blur-sm">
-                <h2 class="text-2xl font-bold text-white flex items-center">
-                    <i class="fas fa-history mr-3"></i>
-                    Recent Chats
-                </h2>
-                <p class="text-indigo-100 text-sm mt-1">Your latest conversations with AI tutor</p>
+        <div class="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 mb-12">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-slate-800 to-slate-900 px-8 py-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white flex items-center">
+                            <i class="fas fa-history mr-3"></i>
+                            Recent Chats
+                        </h2>
+                        <p class="text-slate-300 mt-1 text-sm">Your latest conversations with AI tutor</p>
+                    </div>
+                </div>
             </div>
             
             {% if recent_chats %}
@@ -230,4 +286,72 @@
         </div>
     </div>
 </div>
+
+<!-- Modern Elegant Styles -->
+<style>
+    /* Fade in animation */
+    .fade-in {
+        animation: fadeIn 0.8s ease-out;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Float animation for book illustration */
+    .animate-float {
+        animation: float 6s ease-in-out infinite;
+    }
+
+    @keyframes float {
+        0%, 100% {
+            transform: translateY(0px);
+        }
+        50% {
+            transform: translateY(-20px);
+        }
+    }
+
+    /* Smooth transitions */
+    * {
+        transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Modern scrollbar */
+    ::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    ::-webkit-scrollbar-track {
+        background: #f1f5f9;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: linear-gradient(180deg, #6366f1 0%, #8b5cf6 100%);
+        border-radius: 5px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(180deg, #4f46e5 0%, #7c3aed 100%);
+    }
+
+    /* Card hover effects */
+    .group:hover .group-hover\:translate-y-\[-2px\] {
+        transform: translateY(-2px);
+    }
+
+    /* Staggered animation delays */
+    .fade-in:nth-child(1) { animation-delay: 0.1s; }
+    .fade-in:nth-child(2) { animation-delay: 0.2s; }
+    .fade-in:nth-child(3) { animation-delay: 0.3s; }
+    .fade-in:nth-child(4) { animation-delay: 0.4s; }
+    .fade-in:nth-child(5) { animation-delay: 0.5s; }
+</style>
 {% endblock %}

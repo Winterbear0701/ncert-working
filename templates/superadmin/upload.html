@@ -129,7 +129,7 @@
                 <button 
                     type="submit"
                     :disabled="uploading"
-                    class="px-8 py-3 gradient-bg text-white rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50">
+                    class="px-8 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition disabled:opacity-50 shadow-lg transform hover:scale-105">
                     <span x-show="!uploading">
                         <i class="fas fa-upload mr-2"></i>Upload & Process
                     </span>
@@ -222,7 +222,7 @@ function uploadForm() {
             
             const formData = new FormData(event.target);
             
-            // Add file to formData if not already there
+            // Ensure file is in formData
             if (this.selectedFile) {
                 formData.set('file', this.selectedFile);
             }
@@ -246,15 +246,15 @@ function uploadForm() {
                 }
             })
             .then(response => {
+                clearInterval(progressInterval);
+                this.uploadProgress = 100;
+                
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 return response.json();
             })
             .then(data => {
-                clearInterval(progressInterval);
-                this.uploadProgress = 100;
-                
                 if (data.status === 'success') {
                     alert('PDF uploaded and processed successfully!');
                     setTimeout(() => {
@@ -267,7 +267,6 @@ function uploadForm() {
                 }
             })
             .catch(error => {
-                clearInterval(progressInterval);
                 console.error('Error:', error);
                 alert('Upload failed: ' + error.message);
                 this.uploading = false;
