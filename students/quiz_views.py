@@ -99,7 +99,7 @@ def start_quiz(request, chapter_id):
         
         if not progress.is_unlocked:
             messages.error(request, 'This chapter is locked. Complete the previous chapter first.')
-            return redirect('quiz_dashboard')
+            return redirect('students:quiz_dashboard')
         
         # Get next attempt number
         last_attempt = QuizAttempt.objects.filter(
@@ -124,7 +124,7 @@ def start_quiz(request, chapter_id):
         # Check if chapter has questions
         if not questions.exists():
             messages.warning(request, f'This chapter does not have quiz questions yet. Questions are being generated. Please try Chapter 1 or Chapter 2 for now.')
-            return redirect('quiz_dashboard')
+            return redirect('students:quiz_dashboard')
         
         questions_data = []
         
@@ -163,7 +163,7 @@ def start_quiz(request, chapter_id):
     except Exception as e:
         logger.error(f"Error starting quiz: {e}")
         messages.error(request, f'Error starting quiz: {str(e)}')
-        return redirect('quiz_dashboard')
+        return redirect('students:quiz_dashboard')
 
 
 @login_required
@@ -332,7 +332,7 @@ def submit_quiz(request, attempt_id):
         
         # Generate redirect URL using reverse
         from django.urls import reverse
-        redirect_url = reverse('quiz_results', kwargs={'attempt_id': attempt.id})
+        redirect_url = reverse('students:quiz_results', kwargs={'attempt_id': attempt.id})
         
         return JsonResponse({
             'status': 'success',

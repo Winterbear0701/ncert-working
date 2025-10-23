@@ -35,24 +35,31 @@ def generate_quiz_from_chromadb(chapter_id: str, class_num: str, subject: str, c
         chroma_manager = get_chromadb_manager()
         logger.info(f"🔍 Fetching content from ChromaDB for: {chapter_id}")
         
-        # Query for comprehensive chapter content
+        # Query for comprehensive chapter content - MUST filter by chapter!
         results = chroma_manager.query_by_class_subject_chapter(
             query_text=f"{chapter_name} complete content summary",
             class_num=class_num,
-            n_results=20  # Get maximum content
+            subject=subject,
+            chapter=chapter_name,  # ← CRITICAL: Filter by specific chapter
+            n_results=50  # Get comprehensive content from THIS CHAPTER ONLY
         )
         
         if not results or not results.get("documents") or not results["documents"][0]:
             logger.error(f"❌ No content found in ChromaDB for {chapter_id}")
+            logger.error(f"   Searched for: Class {class_num}, Subject: {subject}, Chapter: {chapter_name}")
             return {"success": False, "error": "No content in ChromaDB"}
         
         # Extract chapter content
         documents = results["documents"][0]
         metadatas = results.get("metadatas", [[]])[0]
         
+        # Verify we got content from the right chapter
+        if metadatas:
+            logger.info(f"📚 Retrieved from: {metadatas[0].get('class')} - {metadatas[0].get('subject')} - {metadatas[0].get('chapter')}")
+        
         # Combine content
-        chapter_content = "\n\n".join(documents[:15])  # Use top 15 most relevant chunks
-        logger.info(f"✅ Retrieved {len(documents)} chunks from ChromaDB")
+        chapter_content = "\n\n".join(documents)  # Use all retrieved chunks
+        logger.info(f"✅ Retrieved {len(documents)} chunks from ChromaDB, {len(chapter_content)} chars")
         
         # 2. Create or get QuizChapter
         quiz_chapter, created = QuizChapter.objects.get_or_create(

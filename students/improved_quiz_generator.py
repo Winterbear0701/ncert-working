@@ -184,24 +184,34 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         chroma_manager = get_chromadb_manager()
         logger.info(f"🔍 Fetching content for: {chapter_name} (Class {class_num}, {subject})")
         
-        # Build specific query for this chapter
-        query_text = f"{subject} {chapter_name} Class {class_num}"
+        # Build specific query for this chapter - CRITICAL: Filter by chapter!
+        query_text = f"{subject} {chapter_name} content summary questions"
         
+        # IMPORTANT: Pass chapter parameter to filter results to ONLY this chapter
         results = chroma_manager.query_by_class_subject_chapter(
             query_text=query_text,
-            class_num=class_num,
-            n_results=30  # Get more content
+            class_num=str(class_num),
+            subject=subject,
+            chapter=chapter_name,  # ← THIS IS CRITICAL! Filter by specific chapter
+            n_results=50  # Get comprehensive content from THIS CHAPTER ONLY
         )
         
         if not results or not results.get("documents") or not results["documents"][0]:
             logger.error(f"❌ No ChromaDB content for {chapter_id}")
-            return {"success": False, "error": "No content in ChromaDB"}
+            logger.error(f"   Tried to find: Class {class_num}, Subject: {subject}, Chapter: {chapter_name}")
+            return {"status": "error", "success": False, "error": "No content in ChromaDB"}
         
         # Combine all documents
         documents = results["documents"][0]
+        metadatas = results.get("metadatas", [[]])[0]
+        
+        # Verify we got the right chapter content
+        if metadatas:
+            logger.info(f"📚 Retrieved from: {metadatas[0].get('class')} - {metadatas[0].get('subject')} - {metadatas[0].get('chapter')}")
+        
         full_content = "\n\n".join(documents)
         
-        logger.info(f"📄 Retrieved {len(documents)} chunks, total {len(full_content)} chars")
+        logger.info(f"📄 Retrieved {len(documents)} chunks from {chapter_name}, total {len(full_content)} chars")
         
         # STEP 1: Extract "Let us reflect" questions
         textbook_questions = extract_let_us_reflect_questions(full_content)
@@ -271,9 +281,11 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         logger.info(f"✅ Created quiz: {len(mcq_data)} questions × 3 variants = {len(mcq_data)*3} total variants")
         
         return {
+            "status": "success",
             "success": True,
             "chapter_id": chapter_id,
             "total_questions": len(mcq_data),
+            "questions_generated": len(mcq_data),
             "textbook_questions_used": len(textbook_questions)
         }
         
@@ -281,4 +293,4 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         logger.error(f"❌ Quiz generation failed: {e}")
         import traceback
         traceback.print_exc()
-        return {"success": False, "error": str(e)}
+        return {"status": "error", "success": False, "error": str(e), "message": str(e)}

@@ -191,22 +191,32 @@ class ChromaDBManager:
             Query results with documents and metadata
         """
         try:
-            # Build where clause for filtering
-            where_clause = {}
+            # Build where clause for filtering using $and operator for multiple conditions
+            where_conditions = []
             
             if class_num:
                 if not str(class_num).lower().startswith('class'):
                     class_num = f"Class {class_num}"
-                where_clause['class'] = class_num
+                where_conditions.append({"class": class_num})
             
             if subject:
-                where_clause['subject'] = str(subject).title()
+                # Use .title() to match storage format (line 74 in format_metadata)
+                where_conditions.append({"subject": str(subject).title()})
             
             if chapter:
                 if not str(chapter).lower().startswith('chapter'):
-                    where_clause['chapter_raw'] = str(chapter)
+                    where_conditions.append({"chapter_raw": str(chapter)})
                 else:
-                    where_clause['chapter'] = str(chapter)
+                    where_conditions.append({"chapter": str(chapter)})
+            
+            # Build final where clause
+            where_clause = None
+            if len(where_conditions) == 1:
+                where_clause = where_conditions[0]
+            elif len(where_conditions) > 1:
+                where_clause = {"$and": where_conditions}
+            
+            logger.info(f"🔍 Querying with filters: {where_clause}")
             
             # Generate query embedding
             query_embedding = embedding_model.encode([query_text]).tolist()[0]
@@ -215,7 +225,7 @@ class ChromaDBManager:
             results = self.collection.query(
                 query_embeddings=[query_embedding],
                 n_results=n_results,
-                where=where_clause if where_clause else None
+                where=where_clause
             )
             
             logger.info(f"🔍 Query returned {len(results['documents'][0])} results")

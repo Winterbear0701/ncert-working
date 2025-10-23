@@ -113,8 +113,85 @@ def ask_chatbot(request):
     if not question:
         return JsonResponse({"status": "error", "error": "Question cannot be empty"}, status=400)
     
-    # 2. Check for Memory Management Commands
-    question_lower = question.lower()
+    # 2. Check for Simple Greetings/Social Responses (skip RAG for these)
+    question_lower = question.lower().strip()
+    
+    # Define simple greeting patterns
+    simple_greetings = [
+        'hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening',
+        'bye', 'goodbye', 'see you', 'thanks', 'thank you', 'thx', 'ty',
+        'ok', 'okay', 'cool', 'nice', 'great', 'awesome', 'got it',
+        'yes', 'no', 'yup', 'nope', 'sure', 'alright'
+    ]
+    
+    # Check if question is just a simple greeting (no RAG needed)
+    is_simple_greeting = (
+        len(question.split()) <= 3 and  # Short message
+        any(greeting in question_lower for greeting in simple_greetings)
+    )
+    
+    if is_simple_greeting:
+        # Direct friendly responses without RAG/web scraping
+        greeting_responses = {
+            'hi': "Hello! 👋 I'm your NCERT AI tutor. Ask me anything about your textbooks!",
+            'hello': "Hi there! 😊 Ready to learn something new today?",
+            'hey': "Hey! 🌟 What would you like to learn about?",
+            'good morning': "Good morning! ☀️ Let's make today a great learning day!",
+            'good afternoon': "Good afternoon! 📚 How can I help you with your studies?",
+            'good evening': "Good evening! 🌙 Ready for some learning?",
+            'bye': "Goodbye! 👋 Keep learning and see you soon!",
+            'goodbye': "Bye! 📚 Remember to review what you learned today!",
+            'see you': "See you later! 🌟 Happy studying!",
+            'thanks': "You're welcome! 😊 Anytime you need help, I'm here!",
+            'thank you': "You're very welcome! 🌟 Happy to help you learn!",
+            'thx': "No problem! 👍 Keep up the great work!",
+            'ty': "Anytime! 😊 That's what I'm here for!",
+            'ok': "Great! 👍 Let me know if you have any questions!",
+            'okay': "Awesome! 🌟 Feel free to ask anything!",
+            'cool': "Glad you think so! 😎 What else can I help with?",
+            'nice': "Thank you! 😊 Ready for the next question?",
+            'great': "Wonderful! 🎉 Keep that enthusiasm going!",
+            'awesome': "You're awesome too! 🌟 Let's keep learning!",
+            'got it': "Perfect! 👍 Let me know if you need more help!",
+            'yes': "Alright! ✅ What would you like to know?",
+            'no': "No worries! 😊 Feel free to ask if you change your mind!",
+        }
+        
+        # Find matching response
+        response = "I'm here to help! 😊 Ask me anything about your NCERT textbooks!"
+        for keyword, resp in greeting_responses.items():
+            if keyword in question_lower:
+                response = resp
+                break
+        
+        # Save to chat history and return
+        try:
+            ChatHistory.objects.create(
+                student=request.user,
+                question=question,
+                answer=response,
+                model_used="greeting_response",
+                difficulty_level="casual",
+                context_found=False,
+                rag_used=False,
+                web_used=False
+            )
+        except Exception as e:
+            logger.error(f"Error saving greeting to history: {e}")
+        
+        return JsonResponse({
+            "status": "success",
+            "answer": response,
+            "images": [],
+            "sources": [],
+            "difficulty_level": "casual",
+            "used_cache": False,
+            "rag_used": False,
+            "web_used": False,
+            "is_greeting": True
+        })
+    
+    # 3. Check for Memory Management Commands
     
     # FORGET/REMOVE command
     if any(phrase in question_lower for phrase in ['forget this', 'remove from memory', 'delete this']):
