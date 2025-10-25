@@ -1,6 +1,6 @@
 """
 Celery tasks for processing uploaded PDF documents
-Handles extraction, chunking, and ChromaDB ingestion with proper labeling
+Handles extraction, chunking, and vector database ingestion with proper labeling
 Format: Class X, Subject: Y, Chapter: Z
 """
 from celery import shared_task
@@ -13,16 +13,16 @@ from datetime import datetime
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import openai
 
-# Import our enhanced ChromaDB manager
-from ncert_project.chromadb_utils import get_chromadb_manager
+# Import unified vector database manager (Pinecone/ChromaDB)
+from ncert_project.vector_db_utils import get_vector_db_manager
 
 logger = logging.getLogger('superadmin')
 
 # Initialize OpenAI
 openai.api_key = settings.OPENAI_API_KEY
 
-# Get ChromaDB manager instance
-chroma_manager = get_chromadb_manager()
+# Get vector database manager instance (auto-switches based on VECTOR_DB env)
+vector_db_manager = get_vector_db_manager()
 
 def is_math_heavy_subject(subject):
     """Check if subject needs special OCR for equations"""
@@ -163,13 +163,14 @@ def process_uploaded_book_sync(uploaded_book_id):
         if not chunks:
             raise ValueError("No chunks created from PDF")
         
-        # Store in ChromaDB using the enhanced manager
-        logger.info(f"📝 Storing {len(chunks)} chunks in ChromaDB with labels:")
+        # Store in vector database (Pinecone/ChromaDB based on VECTOR_DB env)
+        db_type = "Pinecone" if hasattr(vector_db_manager, 'index_name') else "ChromaDB"
+        logger.info(f"📝 Storing {len(chunks)} chunks in {db_type} with labels:")
         logger.info(f"   Class: {book_obj.standard}")
         logger.info(f"   Subject: {book_obj.subject}")
         logger.info(f"   Chapter: {book_obj.chapter}")
         
-        total_added = chroma_manager.add_document_chunks(
+        total_added = vector_db_manager.add_document_chunks(
             chunks=chunks,
             standard=book_obj.standard,
             subject=book_obj.subject,
@@ -221,10 +222,18 @@ def process_uploaded_book_sync(uploaded_book_id):
         
         logger.info(f"✅ Successfully processed upload {uploaded_book_id}: {total_added} chunks")
         
-        # Log ChromaDB stats
-        stats = chroma_manager.get_stats()
-        logger.info(f"📊 ChromaDB Stats: {stats['total_documents']} total documents, "
-                   f"{stats['total_classes']} classes")
+        # Log vector database stats
+        try:
+            if hasattr(vector_db_manager, 'get_stats'):
+                stats = vector_db_manager.get_stats()
+                logger.info(f"📊 Vector DB Stats: {stats.get('total_documents', 0)} total documents, "
+                           f"{stats.get('total_classes', 0)} classes")
+            else:
+                # Pinecone stats
+                index_stats = vector_db_manager.index.describe_index_stats()
+                logger.info(f"📊 Pinecone Stats: {index_stats.get('total_vector_count', 0)} total vectors")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not get vector DB stats: {e}")
         
         return {
             "status": "success",
@@ -279,8 +288,9 @@ def process_uploaded_book(self, uploaded_book_id):
         if not chunks:
             raise ValueError("No chunks created from PDF")
         
-        # Store in ChromaDB using the enhanced manager
-        logger.info(f"📝 Storing {len(chunks)} chunks in ChromaDB with labels:")
+        # Store in vector database (Pinecone/ChromaDB based on VECTOR_DB env)
+        db_type = "Pinecone" if hasattr(vector_db_manager, 'index_name') else "ChromaDB"
+        logger.info(f"📝 Storing {len(chunks)} chunks in {db_type} with labels:")
         logger.info(f"   Class: {book_obj.standard}")
         logger.info(f"   Subject: {book_obj.subject}")
         logger.info(f"   Chapter: {book_obj.chapter}")
@@ -288,10 +298,10 @@ def process_uploaded_book(self, uploaded_book_id):
         # Update progress
         self.update_state(
             state='PROGRESS',
-            meta={'current': 0, 'total': len(chunks), 'percent': 0, 'status': 'Storing in ChromaDB'}
+            meta={'current': 0, 'total': len(chunks), 'percent': 0, 'status': f'Storing in {db_type}'}
         )
         
-        total_added = chroma_manager.add_document_chunks(
+        total_added = vector_db_manager.add_document_chunks(
             chunks=chunks,
             standard=book_obj.standard,
             subject=book_obj.subject,
@@ -355,10 +365,18 @@ def process_uploaded_book(self, uploaded_book_id):
         
         logger.info(f"✅ Successfully processed upload {uploaded_book_id}: {total_added} chunks")
         
-        # Log ChromaDB stats
-        stats = chroma_manager.get_stats()
-        logger.info(f"📊 ChromaDB Stats: {stats['total_documents']} total documents, "
-                   f"{stats['total_classes']} classes")
+        # Log vector database stats
+        try:
+            if hasattr(vector_db_manager, 'get_stats'):
+                stats = vector_db_manager.get_stats()
+                logger.info(f"📊 Vector DB Stats: {stats.get('total_documents', 0)} total documents, "
+                           f"{stats.get('total_classes', 0)} classes")
+            else:
+                # Pinecone stats
+                index_stats = vector_db_manager.index.describe_index_stats()
+                logger.info(f"📊 Pinecone Stats: {index_stats.get('total_vector_count', 0)} total vectors")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not get vector DB stats: {e}")
         
         return {
             "status": "success",

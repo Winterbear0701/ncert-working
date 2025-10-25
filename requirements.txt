@@ -19,7 +19,9 @@ langchain-openai==0.0.5
 langchain-community==0.0.20
 
 # Vector Database
+# Vector Database
 chromadb==0.4.22
+pinecone>=7.0.0  # Production vector database (renamed from pinecone-client)
 sentence-transformers==2.3.1
 
 # PDF Processing

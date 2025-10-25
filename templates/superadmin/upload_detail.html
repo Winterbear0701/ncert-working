@@ -138,6 +138,24 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Action Buttons -->
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-between items-center">
+            <a href="{% url 'superadmin:upload_list' %}" 
+               class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition">
+                <i class="fas fa-arrow-left mr-2"></i>Back to List
+            </a>
+            
+            <form method="POST" action="{% url 'superadmin:delete_upload' upload.id %}" 
+                  onsubmit="return confirm('⚠️ Are you sure you want to delete this upload?\n\nThis will permanently delete:\n• The PDF file\n• All ChromaDB embeddings\n• All generated quizzes\n• All student quiz attempts\n\nThis action cannot be undone!');"
+                  class="inline">
+                {% csrf_token %}
+                <button type="submit" 
+                        class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+                    <i class="fas fa-trash-alt mr-2"></i>Delete Upload
+                </button>
+            </form>
+        </div>
     </div>
 </div>
 

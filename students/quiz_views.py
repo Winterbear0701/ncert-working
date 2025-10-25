@@ -26,6 +26,7 @@ def quiz_dashboard(request):
     """
     Show all subjects and chapters for student's class
     Display lock status and best scores
+    Progressive unlocking: chapter unlocks when previous chapter is completed (score >= 70%)
     """
     user = request.user
     student_class = getattr(user, 'standard', '5')
@@ -36,27 +37,61 @@ def quiz_dashboard(request):
     else:
         class_filter = str(student_class)
     
-    # Get all chapters for this class
+    # Get all chapters for this class, ordered by subject and chapter_order
     chapters = QuizChapter.objects.filter(
         class_number=class_filter,
         is_active=True
     ).order_by('subject', 'chapter_order')
     
-    # Get or create progress for each chapter
+    # Group chapters by subject and apply progressive unlocking logic
     chapters_by_subject = {}
     
     for chapter in chapters:
-        # Get or create progress
+        # Get or create progress for this chapter
         progress, created = StudentChapterProgress.objects.get_or_create(
             student=user,
             chapter=chapter,
             defaults={
-                'is_unlocked': chapter.chapter_order == 1,  # First chapter of each subject unlocked
-                'unlocked_at': timezone.now() if chapter.chapter_order == 1 else None
+                'is_unlocked': False,
+                'unlocked_at': None
             }
         )
         
-        # Organize by subject
+        # Unlock logic:
+        # 1. First chapter of each subject (chapter_order == 1) is always unlocked
+        # 2. Subsequent chapters unlock when previous chapter is completed (score >= 70%)
+        
+        if chapter.chapter_order == 1:
+            # First chapter - always unlocked
+            if not progress.is_unlocked:
+                progress.is_unlocked = True
+                progress.unlocked_at = timezone.now()
+                progress.save()
+                logger.info(f"🔓 Auto-unlocked first chapter for {user.email}: {chapter.chapter_name}")
+        else:
+            # For chapters 2+, check if previous chapter is completed
+            previous_chapter = QuizChapter.objects.filter(
+                class_number=class_filter,
+                subject=chapter.subject,
+                chapter_order=chapter.chapter_order - 1,
+                is_active=True
+            ).first()
+            
+            if previous_chapter:
+                previous_progress, _ = StudentChapterProgress.objects.get_or_create(
+                    student=user,
+                    chapter=previous_chapter,
+                    defaults={'is_unlocked': False}
+                )
+                
+                # Unlock if previous chapter is completed (best_score >= 70%)
+                if previous_progress.best_score >= 70 and not progress.is_unlocked:
+                    progress.is_unlocked = True
+                    progress.unlocked_at = timezone.now()
+                    progress.save()
+                    logger.info(f"🔓 Unlocked chapter for {user.email}: {chapter.chapter_name} (prev score: {previous_progress.best_score}%)")
+        
+        # Organize chapters by subject
         if chapter.subject not in chapters_by_subject:
             chapters_by_subject[chapter.subject] = []
         
@@ -65,15 +100,15 @@ def quiz_dashboard(request):
             'chapter_name': chapter.chapter_name,
             'order': chapter.chapter_order,
             'is_unlocked': progress.is_unlocked,
-            'is_completed': progress.is_completed,
-            'best_score': progress.best_score,
+            'is_completed': progress.best_score >= 70,  # Completed if score >= 70%
+            'best_score': progress.best_score if progress.total_attempts > 0 else None,
             'total_attempts': progress.total_attempts,
         })
     
     context = {
         'user': user,
         'student_class': student_class,
-        'chapters_by_subject': chapters_by_subject,  # Match template variable name
+        'chapters_by_subject': chapters_by_subject,
     }
     
     return render(request, 'students/quiz_dashboard.html', context)

@@ -1,7 +1,9 @@
 import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib import messages
 from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 from celery.result import AsyncResult
 from .forms import UploadBookForm
 from .models import UploadedBook
@@ -154,6 +156,89 @@ def upload_detail(request, upload_id):
     }
     
     return render(request, 'superadmin/upload_detail.html', context)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def delete_upload(request, upload_id):
+    """
+    Delete an uploaded book and all related data (ChromaDB chunks, quizzes, etc.)
+    """
+    import os
+    from django.conf import settings
+    from students.models import QuizChapter, QuizQuestion, QuestionVariant, QuizAttempt, QuizAnswer
+    from ncert_project.chromadb_utils import get_chromadb_manager
+    
+    upload = get_object_or_404(UploadedBook, id=upload_id)
+    
+    try:
+        # Store info for logging
+        filename = upload.original_filename
+        chapter_info = f"{upload.standard} - {upload.subject} - {upload.chapter}"
+        
+        # 1. Delete from ChromaDB (PDF chunks and embeddings)
+        try:
+            chroma_manager = get_chromadb_manager()
+            
+            # Delete chunks matching this upload
+            chroma_manager.collection.delete(
+                where={
+                    "$and": [
+                        {"standard": {"$eq": str(upload.standard)}},
+                        {"subject": {"$eq": upload.subject}},
+                        {"chapter": {"$eq": upload.chapter}}
+                    ]
+                }
+            )
+            logger.info(f"🗑️  Deleted ChromaDB chunks for {chapter_info}")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not delete ChromaDB data: {e}")
+        
+        # 2. Delete related quiz data
+        try:
+            # Find chapters matching this upload
+            chapters = QuizChapter.objects.filter(
+                class_number=f"Class {upload.standard}",
+                subject=upload.subject,
+                chapter_name=upload.chapter
+            )
+            
+            for chapter in chapters:
+                # Delete quiz attempts and answers
+                QuizAnswer.objects.filter(attempt__chapter=chapter).delete()
+                QuizAttempt.objects.filter(chapter=chapter).delete()
+                
+                # Delete question variants and questions
+                QuestionVariant.objects.filter(question__chapter=chapter).delete()
+                QuizQuestion.objects.filter(chapter=chapter).delete()
+                
+                # Delete chapter
+                chapter.delete()
+                
+            logger.info(f"🗑️  Deleted {chapters.count()} quiz chapters and related data")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not delete quiz data: {e}")
+        
+        # 3. Delete physical PDF file
+        try:
+            if upload.file and os.path.exists(upload.file.path):
+                os.remove(upload.file.path)
+                logger.info(f"🗑️  Deleted PDF file: {upload.file.path}")
+        except Exception as e:
+            logger.warning(f"⚠️  Could not delete PDF file: {e}")
+        
+        # 4. Delete upload record from database
+        upload.delete()
+        
+        messages.success(request, f'✅ Successfully deleted "{filename}" and all related data (PDF, quizzes, ChromaDB chunks)')
+        logger.info(f"✅ Successfully deleted upload: {filename} ({chapter_info})")
+        
+    except Exception as e:
+        logger.error(f"❌ Error deleting upload {upload_id}: {e}")
+        messages.error(request, f'Error deleting upload: {str(e)}')
+    
+    return redirect('superadmin:upload_list')
 
 
 @login_required

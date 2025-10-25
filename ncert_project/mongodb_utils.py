@@ -25,11 +25,34 @@ class MongoDBManager:
     def __init__(self):
         if self._client is None:
             try:
-                self._client = MongoClient(settings.MONGODB_URI)
+                mongodb_uri = settings.MONGODB_URI
+                
+                # Validate MongoDB URI
+                if '<db_password>' in mongodb_uri:
+                    logger.error("❌ MongoDB Atlas password not set in .env file!")
+                    logger.error("   Please replace <db_password> in MONGODB_URI with your actual password")
+                    raise ValueError("MongoDB password not configured")
+                
+                # Connect to MongoDB Atlas
+                self._client = MongoClient(
+                    mongodb_uri,
+                    serverSelectionTimeoutMS=5000,
+                    connectTimeoutMS=10000,
+                    retryWrites=True,
+                    w='majority'
+                )
+                
+                # Test connection
+                self._client.admin.command('ping')
+                
                 self._db = self._client[settings.MONGODB_DB_NAME]
-                logger.info(f"✅ Connected to MongoDB: {settings.MONGODB_DB_NAME}")
+                logger.info(f"✅ Connected to MongoDB Atlas: {settings.MONGODB_DB_NAME}")
+                logger.info(f"   Collections: {self._db.list_collection_names()}")
             except Exception as e:
-                logger.error(f"❌ Failed to connect to MongoDB: {str(e)}")
+                logger.error(f"❌ Failed to connect to MongoDB Atlas: {str(e)}")
+                logger.error("   Check: 1) Network access allowed in MongoDB Atlas")
+                logger.error("           2) Correct password in .env file")
+                logger.error("           3) Cluster is running")
                 raise
     
     @property

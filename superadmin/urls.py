@@ -9,6 +9,7 @@ urlpatterns = [
     path('uploads/', views.upload_list, name='upload_list'),
     path('uploads/<int:upload_id>/', views.upload_detail, name='upload_detail'),
     path('uploads/<int:upload_id>/status/', views.upload_status, name='upload_status'),
+    path('uploads/<int:upload_id>/delete/', views.delete_upload, name='delete_upload'),
     
     # Unit Test Management
     path('unit-tests/', views.unit_test_list, name='unit_test_list'),

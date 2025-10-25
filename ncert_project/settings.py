@@ -84,29 +84,35 @@ WSGI_APPLICATION = 'ncert_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# MongoDB Configuration using djongo (commented out - see below)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'djongo',
-#         'NAME': os.getenv('MONGODB_DB_NAME', 'ncert_db'),
-#         'CLIENT': {
-#             'host': os.getenv('MONGODB_URI', 'mongodb://localhost:27017/'),
-#         }
-#     }
-# }
+# MongoDB Atlas Configuration
+# Using direct PyMongo for application data + SQLite for Django admin
+MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
+MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'ncert_learning_db')
 
-# Using PyMongo directly for user/admin data
-# Django models will be stored in MongoDB via custom backend
+# Initialize MongoDB connection
+from pymongo import MongoClient
+try:
+    _mongo_client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+    _mongo_client.admin.command('ping')
+    _mongo_db = _mongo_client[MONGODB_DB_NAME]
+    print(f"✅ MongoDB Atlas connected: {MONGODB_DB_NAME}")
+except Exception as e:
+    print(f"⚠️  MongoDB connection issue: {e}")
+    _mongo_db = None
+
+# SQLite for Django admin panel (sessions, admin logs, contenttypes)
+# This is minimal - only Django's internal tables
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': str(BASE_DIR / 'db.sqlite3'),
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 
-# MongoDB connection settings for direct PyMongo usage
-MONGODB_URI = os.getenv('MONGODB_URI', 'mongodb://localhost:27017/')
-MONGODB_DB_NAME = os.getenv('MONGODB_DB_NAME', 'ncert_db')
+# Strategy: 
+# - Django admin/sessions → SQLite (lightweight, works out of box)
+# - ALL application data → MongoDB Atlas (users, quizzes, chat, etc.)
+# - ChromaDB → RAG embeddings (separate, unchanged)
 
 
 AUTH_USER_MODEL = "accounts.CustomUser"

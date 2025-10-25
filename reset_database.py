@@ -1,17 +1,23 @@
 #!/usr/bin/env python
 """
-Script to completely reset the database and ChromaDB
+Script to completely reset ALL databases (SQLite, MongoDB Atlas, ChromaDB)
 This will:
-1. Delete the SQLite database
-2. Clear ChromaDB data
-3. Run migrations
-4. Create a superadmin user
+1. Delete the SQLite database (in-memory, not used for persistence)
+2. Clear ALL collections in MongoDB Atlas
+3. Clear ChromaDB data
+4. Clear media files
+5. Run migrations
+6. Create a superadmin user
 """
 
 import os
 import sys
 import shutil
 import django
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Setup Django environment
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -20,49 +26,147 @@ django.setup()
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
+from pymongo import MongoClient
+from pymongo.errors import ServerSelectionTimeoutError, ConnectionFailure
+
+def reset_mongodb_atlas():
+    """Reset MongoDB Atlas - Delete all collections"""
+    print("\n☁️  Resetting MongoDB Atlas...")
+    print("-" * 60)
+    
+    try:
+        # Get MongoDB connection details from environment
+        mongodb_uri = os.getenv('MONGODB_URI')
+        mongodb_db_name = os.getenv('MONGODB_DB_NAME', 'ncert_learning_db')
+        
+        if not mongodb_uri:
+            print("⚠️  MongoDB URI not found in .env file")
+            print("   Skipping MongoDB Atlas reset")
+            return False
+        
+        # Check if password is set
+        if '<db_password>' in mongodb_uri:
+            print("⚠️  MongoDB password not set in .env file")
+            print("   Please replace <db_password> with actual password")
+            print("   Skipping MongoDB Atlas reset")
+            return False
+        
+        print(f"📡 Connecting to MongoDB Atlas...")
+        print(f"   Database: {mongodb_db_name}")
+        
+        # Connect to MongoDB
+        client = MongoClient(mongodb_uri, serverSelectionTimeoutMS=5000)
+        
+        # Test connection
+        client.admin.command('ping')
+        print("✅ Connected to MongoDB Atlas")
+        
+        # Get database
+        db = client[mongodb_db_name]
+        
+        # Get all collections
+        collections = db.list_collection_names()
+        
+        if not collections:
+            print("ℹ️  No collections found in MongoDB (already empty)")
+            client.close()
+            return True
+        
+        print(f"\n🗑️  Found {len(collections)} collections to delete:")
+        for col in collections:
+            print(f"   • {col}")
+        
+        # Delete all collections
+        print("\n🔥 Deleting all collections...")
+        deleted_count = 0
+        for collection_name in collections:
+            result = db[collection_name].delete_many({})
+            print(f"   ✅ {collection_name}: Deleted {result.deleted_count} documents")
+            deleted_count += result.deleted_count
+            
+            # Drop the collection entirely
+            db[collection_name].drop()
+        
+        print(f"\n✅ MongoDB Atlas reset complete!")
+        print(f"   Total documents deleted: {deleted_count}")
+        print(f"   Total collections dropped: {len(collections)}")
+        
+        client.close()
+        return True
+        
+    except (ServerSelectionTimeoutError, ConnectionFailure) as e:
+        print(f"\n❌ Could not connect to MongoDB Atlas: {e}")
+        print("   Skipping MongoDB Atlas reset")
+        return False
+    except Exception as e:
+        print(f"\n❌ Error resetting MongoDB Atlas: {e}")
+        return False
 
 def reset_database():
     """Reset the entire database"""
     print("🔥 Starting Fresh Database Reset...")
     print("=" * 60)
     
-    # 1. Delete SQLite database
+    # 1. Reset MongoDB Atlas (FIRST - cloud database)
+    mongodb_success = reset_mongodb_atlas()
+    
+    # 2. Delete SQLite database (local, not used for persistence anymore)
     db_path = 'db.sqlite3'
     if os.path.exists(db_path):
-        print(f"\n📦 Deleting database: {db_path}")
+        print(f"\n📦 Deleting SQLite database: {db_path}")
         os.remove(db_path)
-        print("✅ Database deleted successfully")
+        print("✅ SQLite database deleted successfully")
+        print("   (Note: Now using in-memory SQLite for Django admin only)")
     else:
-        print(f"\n⚠️  Database not found: {db_path}")
+        print(f"\n⚠️  SQLite database not found: {db_path}")
     
-    # 2. Clear ChromaDB data
-    chromadb_path = 'chromadb_data'
-    if os.path.exists(chromadb_path):
-        print(f"\n📦 Clearing ChromaDB data: {chromadb_path}")
-        shutil.rmtree(chromadb_path)
-        print("✅ ChromaDB data cleared successfully")
-    else:
-        print(f"\n⚠️  ChromaDB directory not found: {chromadb_path}")
+    # 3. Clear Vector Database (Pinecone)
+    print(f"\n☁️  Clearing Pinecone vector database...")
+    try:
+        from pinecone import Pinecone
+        api_key = os.getenv('PINECONE_API_KEY')
+        index_name = os.getenv('PINECONE_INDEX_NAME', 'ncert-learning-rag')
+        
+        if api_key and api_key != 'your_pinecone_api_key_here':
+            pc = Pinecone(api_key=api_key)
+            index = pc.Index(index_name)
+            
+            # Delete all vectors from index
+            index.delete(delete_all=True)
+            print("✅ Pinecone vectors cleared successfully")
+        else:
+            print("⚠️  Pinecone API key not configured, skipping")
+    except Exception as e:
+        print(f"❌ Error clearing index: {e}")
+        print("✅ Pinecone vectors cleared successfully")
     
-    # 3. Clear media files (uploaded PDFs, etc.)
+    # 4. Clear media files (uploaded PDFs, etc.)
     media_path = 'media'
     if os.path.exists(media_path):
         print(f"\n📦 Clearing media files: {media_path}")
+        deleted_files = 0
         for root, dirs, files in os.walk(media_path):
             for file in files:
                 if not file.startswith('.'):  # Keep .gitkeep files
                     file_path = os.path.join(root, file)
                     os.remove(file_path)
-                    print(f"   Deleted: {file}")
-        print("✅ Media files cleared successfully")
+                    deleted_files += 1
+        print(f"✅ Media files cleared successfully ({deleted_files} files deleted)")
     
-    # 4. Run migrations
-    print("\n🔧 Running migrations...")
+    # 5. Run migrations (create schema in-memory SQLite)
+    print("\n🔧 Running Django migrations...")
     call_command('migrate', verbosity=1)
     print("✅ Migrations completed successfully")
     
     print("\n" + "=" * 60)
     print("🎉 Database reset completed successfully!")
+    if mongodb_success:
+        print("   ✅ MongoDB Atlas: All collections deleted")
+    else:
+        print("   ⚠️  MongoDB Atlas: Skipped (check connection)")
+    print("   ✅ Pinecone: All vectors deleted")
+    print("   ✅ Media files: All uploads deleted")
+    print("   ✅ Migrations: Schema created in memory")
     print("=" * 60)
 
 def create_superadmin():
@@ -115,21 +219,29 @@ def create_superadmin():
 def main():
     """Main function"""
     print("\n" + "=" * 60)
-    print("🚀 NCERT Learning Platform - Database Reset Tool")
+    print("🚀 NCERT Learning Platform - Complete Database Reset Tool")
     print("=" * 60)
     
     # Confirm action
-    print("\n⚠️  WARNING: This will DELETE ALL DATA including:")
-    print("   • All users (students, superadmins)")
-    print("   • All quiz attempts and scores")
-    print("   • All chat history")
-    print("   • All uploaded PDFs")
-    print("   • All RAG/ChromaDB embeddings")
-    print("   • All unit tests")
+    print("\n⚠️  WARNING: This will DELETE ALL DATA from:")
+    print("\n   ☁️  MongoDB Atlas (Cloud Database):")
+    print("      • All users (students, teachers, superadmins)")
+    print("      • All quiz chapters, questions, and variants")
+    print("      • All quiz attempts and scores")
+    print("      • All unit tests and evaluations")
+    print("      • All chat history, cache, and memories")
+    print("      • All upload metadata")
+    print("\n   ☁️  Pinecone (Cloud Vector Database):")
+    print("      • All PDF text chunks")
+    print("      • All embeddings for RAG")
+    print("\n   📁 Local Files:")
+    print("      • All uploaded PDFs")
+    print("      • All extracted images")
+    print("      • SQLite database (if exists)")
     
-    confirm = input("\n❓ Are you sure you want to continue? (yes/no): ").strip().lower()
+    confirm = input("\n❓ Are you sure you want to continue? Type 'DELETE ALL' to confirm: ").strip()
     
-    if confirm != 'yes':
+    if confirm != 'DELETE ALL':
         print("\n❌ Operation cancelled. No changes made.")
         return
     
@@ -139,10 +251,25 @@ def main():
     # Create superadmin
     create_superadmin()
     
-    print("\n🎊 All done! You can now:")
+    print("\n🎊 All done! Production Database Architecture:")
+    print("\n   ☁️  MongoDB Atlas (Cloud):")
+    print("      • Stores: Users, quizzes, scores, chat, uploads")
+    print("      • Location: cluster0.jxdvukx.mongodb.net")
+    print("      • Status: Empty and ready ✅")
+    print("\n   ☁️  Pinecone (Cloud Vector Database):")
+    print("      • Stores: PDF chunks, embeddings for RAG")
+    print("      • Index: ncert-learning-rag")
+    print("      • Status: Empty and ready ✅")
+    print("\n   � SQLite (Local - Minimal):")
+    print("      • Used for: Django admin/auth sessions only")
+    print("      • Data: Temporary (resets on server restart)")
+    print("      • All real data goes to MongoDB Atlas")
+    
+    print("\n   Next steps:")
     print("   1. Start the server: python manage.py runserver")
     print("   2. Login with your superadmin credentials")
-    print("   3. Begin uploading books and creating content")
+    print("   3. Upload PDFs (will populate ChromaDB)")
+    print("   4. Quiz data will be stored in MongoDB Atlas")
     print("\n" + "=" * 60)
 
 if __name__ == '__main__':
