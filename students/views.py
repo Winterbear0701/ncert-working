@@ -36,7 +36,10 @@ RAG_SYSTEM = {
 }
 
 def initialize_rag_system():
-    """Initializes ChromaDB, the embedding model, and API keys."""
+    """
+    Initializes Vector DB (Pinecone/ChromaDB), embedding model, and API keys.
+    NOTE: ChromaDB folder creation is disabled - using vector_db_utils instead
+    """
     global RAG_SYSTEM
     
     # 1. API Key Configuration
@@ -55,13 +58,17 @@ def initialize_rag_system():
     except Exception as e:
         logger.error(f"Error configuring API keys: {e}")
 
-    # 2. Initialize ChromaDB
+    # 2. Initialize Vector DB Manager (Pinecone in production, ChromaDB for local)
+    # NOTE: No longer creating ChromaDB client here - using vector_db_utils
+    # The vector_db_utils automatically handles Pinecone/ChromaDB based on VECTOR_DB env
     try:
-        chroma_persist_dir = getattr(settings, 'CHROMA_PERSIST_DIRECTORY', 'chromadb_data')
-        chroma_client = chromadb.PersistentClient(path=chroma_persist_dir)
-        RAG_SYSTEM["chroma_client"] = chroma_client
+        from ncert_project.vector_db_utils import get_vector_db_manager
+        vector_manager = get_vector_db_manager()
+        RAG_SYSTEM["vector_manager"] = vector_manager
+        db_type = "Pinecone" if hasattr(vector_manager, 'index_name') else "ChromaDB"
+        logger.info(f"✅ Vector DB initialized: {db_type}")
     except Exception as e:
-        logger.error(f"Error initializing ChromaDB client: {e}")
+        logger.error(f"Error initializing Vector DB manager: {e}")
         return # Stop if database fails
 
     # 3. Initialize Embedding Model (can be slow, only do once)
@@ -71,15 +78,11 @@ def initialize_rag_system():
         logger.error(f"Error loading SentenceTransformer model: {e}")
         return
 
-    # 4. Get or create collection
+    # 4. Log successful initialization
     try:
-        RAG_SYSTEM["collection"] = RAG_SYSTEM["chroma_client"].get_or_create_collection(
-            name="ncert_books",
-            metadata={"description": "NCERT textbook embeddings by standard, subject, and chapter"}
-        )
         logger.info("RAG system initialization complete.")
     except Exception as e:
-        logger.error(f"Error accessing ChromaDB collection: {e}")
+        logger.error(f"Error in RAG system initialization: {e}")
 
 # Run initialization (In a production Django environment, it's safer to call this
 # from an AppConfig.ready() method to ensure it runs exactly once after Django is ready.)
@@ -166,7 +169,7 @@ def ask_chatbot(request):
         
         # Save to chat history and return
         try:
-            ChatHistory.objects.create(
+            chat_obj = ChatHistory.objects.create(
                 student=request.user,
                 question=question,
                 answer=response,
@@ -176,6 +179,19 @@ def ask_chatbot(request):
                 rag_used=False,
                 web_used=False
             )
+            # Sync to MongoDB
+            try:
+                from ncert_project.mongodb_utils import save_chat_to_mongo
+                save_chat_to_mongo(
+                    student_id=request.user.id,
+                    question=question,
+                    answer=response,
+                    model_used="greeting_response",
+                    created_at=chat_obj.created_at,
+                    difficulty_level="casual"
+                )
+            except Exception as mongo_err:
+                logger.warning(f"⚠️  Failed to sync chat to MongoDB: {mongo_err}")
         except Exception as e:
             logger.error(f"Error saving greeting to history: {e}")
         
@@ -283,14 +299,16 @@ def ask_chatbot(request):
     web_context = ""
     
     if not used_cache:
-        # 3a. ChromaDB RAG Retrieval (PRIMARY SOURCE - ALWAYS SEARCH FIRST!)
+        # 3a. Vector DB RAG Retrieval (PRIMARY SOURCE - ALWAYS SEARCH FIRST!)
+        # Uses Pinecone in production, ChromaDB for local
         try:
-            from ncert_project.chromadb_utils import get_chromadb_manager
-            chroma_manager = get_chromadb_manager()
+            from ncert_project.vector_db_utils import get_vector_db_manager
+            vector_manager = get_vector_db_manager()
+            db_type = "Pinecone" if hasattr(vector_manager, 'index_name') else "ChromaDB"
             
-            # Query ChromaDB with MAXIMUM results to get comprehensive content
-            logger.info(f"🔍 Querying ChromaDB (RAG) for: {question[:50]}...")
-            results = chroma_manager.query_by_class_subject_chapter(
+            # Query vector DB with MAXIMUM results to get comprehensive content
+            logger.info(f"🔍 Querying {db_type} (RAG) for: {question[:50]}...")
+            results = vector_manager.query_by_class_subject_chapter(
                 query_text=question,
                 class_num=str(standard) if standard else None,
                 n_results=20  # Get maximum relevant chunks for comprehensive answer
@@ -327,12 +345,12 @@ def ask_chatbot(request):
                 
                 rag_context = "\n\n".join(context_parts)
                 context_found = True
-                logger.info(f"✅ Found {len(documents)} relevant chunks from NCERT textbooks (ChromaDB)")
+                logger.info(f"✅ Found {len(documents)} relevant chunks from NCERT textbooks ({db_type})")
             else:
-                logger.info("⚠️  No relevant content found in ChromaDB")
+                logger.info(f"⚠️  No relevant content found in {db_type}")
                 
         except Exception as e:
-            logger.error(f"❌ Error during ChromaDB RAG retrieval: {e}")
+            logger.error(f"❌ Error during Vector DB RAG retrieval: {e}")
             import traceback
             traceback.print_exc()
         
@@ -401,29 +419,39 @@ def ask_chatbot(request):
                 f"Use proper academic language while keeping it engaging."
             )
         
-        # Build context string - PRIORITIZE NCERT CONTENT!
+        # Build context string - CRITICAL: ONLY USE NCERT CONTENT!
         full_context = ""
         if rag_context:
             full_context += f"\n\n📚 **FROM YOUR NCERT TEXTBOOK:**\n{rag_context}\n\n"
-            full_context += "⚠️ **IMPORTANT:** Base your answer primarily on the NCERT textbook content above. "
-            full_context += "This is the official curriculum content the student is learning."
+            full_context += ("⚠️ **CRITICAL INSTRUCTION - DO NOT HALLUCINATE:**\n"
+                           "- Answer ONLY using the NCERT textbook content provided above\n"
+                           "- If the question cannot be answered with the given content, say so clearly\n"
+                           "- DO NOT make up information or use knowledge outside this textbook content\n"
+                           "- This is the official curriculum - accuracy is more important than completeness\n")
         if web_context:
-            full_context += f"\n\n**Additional Reference:**\n{web_context}"
+            full_context += f"\n\n**Additional Reference (use sparingly):**\n{web_context}"
         
-        # User prompt with clear instructions
+        # User prompt with STRICT instructions
         if full_context:
             user_prompt = (
                 f"Student's Question: {question}\n\n"
                 f"{full_context}\n\n"
-                f"Instructions:\n"
-                f"1. Answer based MAINLY on the NCERT textbook content\n"
-                f"2. Make it appropriate for Class {standard}\n"
-                f"3. Use simple, clear language\n"
-                f"4. Include examples from the textbook if available\n"
-                f"5. Keep it engaging and encouraging"
+                f"STRICT Answer Instructions:\n"
+                f"1. Answer ONLY using the NCERT textbook content shown above\n"
+                f"2. If the textbook content doesn't answer the question, say: 'I couldn't find this specific information in your textbook'\n"
+                f"3. DO NOT add information from general knowledge\n"
+                f"4. Make it appropriate for Class {standard}\n"
+                f"5. Use simple, clear language from the textbook\n"
+                f"6. Quote or reference the textbook content directly\n"
+                f"7. Keep it engaging but ACCURATE to the textbook ONLY"
             )
         else:
-            user_prompt = f"Question: {question}"
+            # This shouldn't happen due to check above, but just in case
+            user_prompt = (
+                f"Question: {question}\n\n"
+                f"I couldn't find relevant content in the NCERT textbooks for this question. "
+                f"Please ask about topics from your NCERT textbooks."
+            )
         
         # Adjust for difficulty level
         system_prompt = adjust_prompt_for_difficulty(base_system, difficulty_level, user_context=user_prompt[:500])
@@ -578,7 +606,7 @@ def ask_chatbot(request):
     
     # 7. Save to Chat History
     try:
-        ChatHistory.objects.create(
+        chat_obj = ChatHistory.objects.create(
             student=request.user,
             question=question,
             answer=answer,
@@ -587,6 +615,21 @@ def ask_chatbot(request):
             sources=sources if sources else None,
             difficulty_level=difficulty_level
         )
+        # Sync to MongoDB
+        try:
+            from ncert_project.mongodb_utils import save_chat_to_mongo
+            save_chat_to_mongo(
+                student_id=request.user.id,
+                question=question,
+                answer=answer,
+                model_used=chat_obj.model_used,
+                created_at=chat_obj.created_at,
+                has_images=len(images) > 0,
+                sources=sources if sources else [],
+                difficulty_level=difficulty_level
+            )
+        except Exception as mongo_err:
+            logger.warning(f"⚠️  Failed to sync chat to MongoDB: {mongo_err}")
     except Exception as db_error:
         logger.error(f"Failed to save chat history: {db_error}")
     

@@ -329,6 +329,13 @@ def submit_quiz(request, attempt_id):
         attempt.topic_performance = topic_performance
         attempt.save()
         
+        # Sync to MongoDB for analytics
+        try:
+            from ncert_project.mongodb_utils import sync_quiz_attempt_to_mongo
+            sync_quiz_attempt_to_mongo(attempt)
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to sync quiz to MongoDB: {e}")
+        
         # Update chapter progress
         progress = StudentChapterProgress.objects.get(student=user, chapter=attempt.chapter)
         progress.total_attempts += 1
@@ -362,6 +369,13 @@ def submit_quiz(request, attempt_id):
                     logger.info(f"🔓 Unlocked next chapter: {next_chapter.chapter_name}")
         
         progress.save()
+        
+        # Sync progress to MongoDB
+        try:
+            from ncert_project.mongodb_utils import sync_student_progress_to_mongo
+            sync_student_progress_to_mongo(progress)
+        except Exception as e:
+            logger.warning(f"⚠️  Failed to sync progress to MongoDB: {e}")
         
         logger.info(f"✅ Quiz submitted: Score {score_percentage}% - {'PASSED' if is_passed else 'FAILED'}")
         

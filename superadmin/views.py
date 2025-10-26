@@ -617,8 +617,8 @@ def student_analytics(request):
     student_data = []
     
     for student in students:
-        # MCQ Statistics - Only count completed quizzes
-        mcq_attempts = QuizAttempt.objects.filter(student=student, status='completed')
+        # MCQ Statistics - Count submitted and verified quizzes
+        mcq_attempts = QuizAttempt.objects.filter(student=student, status__in=['submitted', 'verified'])
         mcq_total = mcq_attempts.count()
         mcq_avg_score = mcq_attempts.aggregate(Avg('score_percentage'))['score_percentage__avg'] or 0
         
@@ -688,7 +688,7 @@ def student_detail_analytics(request, student_id):
     mcq_chapter_performance = []
     
     for chapter in chapters:
-        attempts = QuizAttempt.objects.filter(student=student, chapter=chapter, status='completed')
+        attempts = QuizAttempt.objects.filter(student=student, chapter=chapter, status__in=['submitted', 'verified'])
         if attempts.exists():
             avg_score = attempts.aggregate(Avg('score_percentage'))['score_percentage__avg']
             mcq_chapter_performance.append({

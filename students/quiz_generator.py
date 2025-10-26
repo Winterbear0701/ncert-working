@@ -131,10 +131,16 @@ def generate_quiz_from_chromadb(chapter_id: str, class_num: str, subject: str, c
         return {"success": False, "error": str(e)}
 
 
-def generate_mcq_questions_with_ai(content: str, chapter_name: str, class_num: str) -> List[Dict]:
+def generate_mcq_questions_with_ai(content: str, chapter_name: str, class_num: str, num_questions: int = 10) -> List[Dict]:
     """
-    Use AI to generate 10 MCQ questions with 3 variants each
+    Use AI to generate MCQ questions with 5 variants each
     Age-appropriate for the student's class level
+    
+    Args:
+        content: Chapter content from vector DB
+        chapter_name: Name of the chapter
+        class_num: Class number (e.g., "5")
+        num_questions: Number of questions to generate (default: 10)
     """
     try:
         # Initialize AI
@@ -163,12 +169,12 @@ CHAPTER: {chapter_name} (Class {class_num})
 CHAPTER CONTENT:
 {content[:4000]}
 
-TASK: Generate EXACTLY 10 multiple-choice questions (MCQs) with 3 variants each.
+TASK: Generate EXACTLY {num_questions} multiple-choice questions (MCQs) with 5 variants each.
 
 IMPORTANT REQUIREMENTS:
 1. Use {language_level} - students are around {10 + class_number} years old
 2. Each question should test understanding of key concepts from the content
-3. Create EXACTLY 3 VARIANTS of each question (same concept, different wording)
+3. Create EXACTLY 5 VARIANTS of each question (same concept, different wording)
 4. Each MCQ must have exactly 4 options (A, B, C, D)
 5. Only ONE correct answer per question
 6. EXPLANATIONS: Keep explanations SHORT (2-3 sentences max), simple, and in plain text without any markdown formatting (no *, #, **, etc.)
@@ -225,33 +231,67 @@ OUTPUT FORMAT (STRICT JSON):
         }},
         "correct": "C",
         "explanation": "Explanation for variant 3"
+      }},
+      {{
+        "question": "Fourth variant of the same concept?",
+        "options": {{
+          "A": "Fourth first option",
+          "B": "Fourth second option",
+          "C": "Fourth third option",
+          "D": "Fourth fourth option"
+        }},
+        "correct": "D",
+        "explanation": "Explanation for variant 4"
+      }},
+      {{
+        "question": "Fifth variant of the same concept?",
+        "options": {{
+          "A": "Fifth first option",
+          "B": "Fifth second option",
+          "C": "Fifth third option",
+          "D": "Fifth fourth option"
+        }},
+        "correct": "A",
+        "explanation": "Explanation for variant 5"
       }}
     ]
   }},
-  ... (continue for all 10 questions)
+  ... (continue for all {num_questions} questions)
 ]
 
-Generate EXACTLY 10 questions. Return ONLY the JSON array, no other text."""
+⚠️ CRITICAL: Return ONLY valid JSON. No markdown, no comments, proper quotes, no trailing commas.
+Generate EXACTLY {num_questions} questions. Return ONLY the JSON array, no other text."""
 
-        # Use Gemini (primary)
+        # Use Gemini with retry
         result_text = None
+        max_retries = 2
+        
         if gemini_api_key:
-            try:
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
-                response = model.generate_content(prompt)
-                result_text = response.text
-                logger.info("✅ Gemini generated quiz questions")
-            except Exception as e:
-                logger.error(f"Gemini error: {e}")
-                return None
+            for attempt in range(max_retries):
+                try:
+                    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                    response = model.generate_content(
+                        prompt,
+                        generation_config={
+                            'temperature': 0.3,
+                            'top_p': 0.8,
+                        }
+                    )
+                    result_text = response.text
+                    logger.info(f"✅ Gemini generated quiz questions (attempt {attempt + 1})")
+                    break
+                except Exception as e:
+                    logger.warning(f"⚠️ Gemini attempt {attempt + 1} failed: {e}")
+                    if attempt == max_retries - 1:
+                        logger.error(f"❌ All Gemini attempts failed")
+                        return []
         
         if not result_text:
-            logger.error("❌ Both AI models failed")
-            return None
+            logger.error("❌ AI model unavailable")
+            return []
         
-        # Parse JSON response
+        # Parse JSON response with error recovery
         import json
-        # Extract JSON from response (remove markdown code blocks if present)
         result_text = result_text.strip()
         if result_text.startswith("```json"):
             result_text = result_text[7:]
@@ -261,13 +301,31 @@ Generate EXACTLY 10 questions. Return ONLY the JSON array, no other text."""
             result_text = result_text[:-3]
         result_text = result_text.strip()
         
-        questions_data = json.loads(result_text)
+        questions_data = None
+        try:
+            questions_data = json.loads(result_text)
+            logger.info(f"✅ Parsed {len(questions_data)} questions")
+        except json.JSONDecodeError as e:
+            logger.warning(f"⚠️ JSON parse error: {e.msg} at line {e.lineno}")
+            # Try to fix common issues
+            fixed_text = result_text
+            fixed_text = re.sub(r',(\s*[}\]])', r'\1', fixed_text)  # Remove trailing commas
+            fixed_text = re.sub(r'(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', fixed_text)  # Quote keys
+            try:
+                questions_data = json.loads(fixed_text)
+                logger.info(f"✅ Fixed and parsed {len(questions_data)} questions")
+            except:
+                logger.error(f"❌ Could not fix JSON, returning empty")
+                return []
         
-        # Validate we have 10 questions
-        if len(questions_data) < 10:
-            logger.warning(f"⚠️ Only {len(questions_data)} questions generated, expected 10")
+        if not questions_data:
+            return []
         
-        return questions_data[:10]  # Take first 10
+        # Validate we have requested number of questions
+        if len(questions_data) < num_questions:
+            logger.warning(f"⚠️ Only {len(questions_data)} questions generated, expected {num_questions}")
+        
+        return questions_data[:num_questions]  # Take first num_questions
         
     except Exception as e:
         logger.error(f"❌ Error in AI question generation: {e}")

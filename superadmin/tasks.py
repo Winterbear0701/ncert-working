@@ -2,6 +2,7 @@
 Celery tasks for processing uploaded PDF documents
 Handles extraction, chunking, and vector database ingestion with proper labeling
 Format: Class X, Subject: Y, Chapter: Z
+Includes OCR for extracting text from images (like definitions in diagrams)
 """
 from celery import shared_task
 from .models import UploadedBook
@@ -12,6 +13,9 @@ import logging
 from datetime import datetime
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 import openai
+import pytesseract
+from PIL import Image
+import io
 
 # Import unified vector database manager (Pinecone/ChromaDB)
 from ncert_project.vector_db_utils import get_vector_db_manager
@@ -30,10 +34,43 @@ def is_math_heavy_subject(subject):
     return any(subj in subject.lower() for subj in math_subjects)
 
 
+def extract_text_from_images_ocr(page):
+    """
+    Extract text from images on a PDF page using OCR
+    This captures definitions and terms that appear in images/diagrams
+    Returns: extracted image text
+    """
+    image_text = []
+    try:
+        # Get images from the page
+        images = page.images
+        if images:
+            for img in images:
+                try:
+                    # Get image object
+                    image_obj = page.within_bbox((img['x0'], img['top'], img['x1'], img['bottom']))
+                    # Convert to PIL Image
+                    im = image_obj.to_image(resolution=300)
+                    pil_img = im.original
+                    
+                    # Perform OCR
+                    ocr_text = pytesseract.image_to_string(pil_img, lang='eng')
+                    if ocr_text.strip():
+                        image_text.append(ocr_text.strip())
+                        logger.info(f"   📸 Extracted text from image: {ocr_text[:100]}...")
+                except Exception as img_error:
+                    logger.debug(f"   Could not OCR image: {str(img_error)}")
+                    continue
+    except Exception as e:
+        logger.debug(f"   OCR extraction error: {str(e)}")
+    
+    return "\n\n[IMAGE TEXT]\n" + "\n".join(image_text) + "\n[/IMAGE TEXT]\n" if image_text else ""
+
+
 def extract_text_from_pdf(pdf_path, subject=""):
     """
     Extract text from PDF with enhanced handling for math/science content
-    Uses pdfplumber for regular text and can be extended with Nougat for equations
+    AND extract text from images using OCR (for terms like 'dune', 'plateau' etc)
     Returns list of (page_num, text, has_equations) tuples
     """
     pages_data = []
@@ -45,7 +82,13 @@ def extract_text_from_pdf(pdf_path, subject=""):
             logger.info(f"Processing {total_pages} pages from PDF (Enhanced: {use_enhanced_extraction})")
             
             for i, page in enumerate(pdf.pages, start=1):
+                # Extract regular text
                 text = page.extract_text() or ""
+                
+                # Extract text from images (IMPORTANT: for definitions in diagrams)
+                image_text = extract_text_from_images_ocr(page)
+                if image_text:
+                    text += "\n\n" + image_text
                 
                 # Clean up the text
                 text = text.strip()
@@ -181,6 +224,43 @@ def process_uploaded_book_sync(uploaded_book_id):
         
         # ==================== AUTO-GENERATE MCQs ====================
         logger.info(f"🎯 Auto-generating MCQs for uploaded chapter...")
+        
+        # IMPORTANT: Pinecone has indexing latency - wait and verify vectors are queryable
+        if hasattr(vector_db_manager, 'index_name'):
+            import time
+            logger.info("⏳ Waiting for Pinecone indexing to complete...")
+            
+            # Wait with verification - check if vectors are queryable
+            max_wait_time = 30  # Maximum 30 seconds
+            wait_interval = 3   # Check every 3 seconds
+            elapsed_time = 0
+            vectors_ready = False
+            
+            while elapsed_time < max_wait_time:
+                time.sleep(wait_interval)
+                elapsed_time += wait_interval
+                
+                # Quick test query to see if vectors are indexed
+                try:
+                    test_results = vector_db_manager.query_by_class_subject_chapter(
+                        query_text=f"{book_obj.subject} {book_obj.chapter}",
+                        class_num=str(book_obj.standard),
+                        subject=book_obj.subject,
+                        chapter=book_obj.chapter,
+                        n_results=1
+                    )
+                    if test_results and test_results.get('documents') and len(test_results['documents'][0]) > 0:
+                        vectors_ready = True
+                        logger.info(f"✅ Pinecone indexing complete after {elapsed_time}s - {len(test_results['documents'][0])} vectors ready")
+                        break
+                    else:
+                        logger.info(f"⏳ Indexing in progress... ({elapsed_time}s elapsed)")
+                except Exception as e:
+                    logger.warning(f"⚠️  Test query failed: {e}")
+            
+            if not vectors_ready:
+                logger.warning(f"⚠️  Pinecone indexing may not be complete after {elapsed_time}s - proceeding anyway")
+        
         try:
             from students.improved_quiz_generator import generate_quiz_with_textbook_questions
             
@@ -188,13 +268,18 @@ def process_uploaded_book_sync(uploaded_book_id):
             chapter_num = book_obj.chapter.replace('Chapter', '').replace('chapter', '').strip()
             chapter_id = f"class_{book_obj.standard}_{book_obj.subject.lower().replace(' ', '_')}_chapter_{chapter_num}"
             
-            # Get chapter order (count existing chapters + 1)
+            # Normalize class format for querying
+            class_number_normalized = f"Class {book_obj.standard}" if not str(book_obj.standard).lower().startswith('class') else str(book_obj.standard)
+            
+            # Get chapter order based on SAME class AND subject
             from students.models import QuizChapter
             existing_chapters = QuizChapter.objects.filter(
-                class_number=book_obj.standard,
+                class_number=class_number_normalized,  # Use normalized format
                 subject=book_obj.subject
             ).count()
             chapter_order = existing_chapters + 1
+            
+            logger.info(f"📊 Chapter order calculation: {existing_chapters} existing chapters for {class_number_normalized}/{book_obj.subject}, new chapter_order={chapter_order}")
             
             # Generate quiz
             quiz_result = generate_quiz_with_textbook_questions(
@@ -313,7 +398,54 @@ def process_uploaded_book(self, uploaded_book_id):
         # Update progress
         self.update_state(
             state='PROGRESS',
-            meta={'current': total_added, 'total': len(chunks), 'percent': 80, 'status': 'Generating MCQs'}
+            meta={'current': total_added, 'total': len(chunks), 'percent': 80, 'status': 'Indexing vectors'}
+        )
+        
+        # IMPORTANT: Pinecone has indexing latency - wait and verify vectors are queryable
+        if hasattr(vector_db_manager, 'index_name'):
+            import time
+            logger.info("⏳ Waiting for Pinecone indexing to complete...")
+            
+            # Wait with verification - check if vectors are queryable
+            max_wait_time = 30  # Maximum 30 seconds
+            wait_interval = 3   # Check every 3 seconds
+            elapsed_time = 0
+            vectors_ready = False
+            
+            while elapsed_time < max_wait_time:
+                time.sleep(wait_interval)
+                elapsed_time += wait_interval
+                
+                # Quick test query to see if vectors are indexed
+                try:
+                    test_results = vector_db_manager.query_by_class_subject_chapter(
+                        query_text=f"{book_obj.subject} {book_obj.chapter}",
+                        class_num=str(book_obj.standard),
+                        subject=book_obj.subject,
+                        chapter=book_obj.chapter,
+                        n_results=1
+                    )
+                    if test_results and test_results.get('documents') and len(test_results['documents'][0]) > 0:
+                        vectors_ready = True
+                        logger.info(f"✅ Pinecone indexing complete after {elapsed_time}s - {len(test_results['documents'][0])} vectors ready")
+                        break
+                    else:
+                        logger.info(f"⏳ Indexing in progress... ({elapsed_time}s elapsed)")
+                        # Update progress
+                        self.update_state(
+                            state='PROGRESS',
+                            meta={'current': total_added, 'total': len(chunks), 'percent': 80 + (elapsed_time * 5 // max_wait_time), 'status': f'Waiting for indexing ({elapsed_time}s)'}
+                        )
+                except Exception as e:
+                    logger.warning(f"⚠️  Test query failed: {e}")
+            
+            if not vectors_ready:
+                logger.warning(f"⚠️  Pinecone indexing may not be complete after {elapsed_time}s - proceeding anyway")
+        
+        # Update progress
+        self.update_state(
+            state='PROGRESS',
+            meta={'current': total_added, 'total': len(chunks), 'percent': 85, 'status': 'Generating MCQs'}
         )
         
         # ==================== AUTO-GENERATE MCQs ====================
@@ -325,13 +457,18 @@ def process_uploaded_book(self, uploaded_book_id):
             chapter_num = book_obj.chapter.replace('Chapter', '').replace('chapter', '').strip()
             chapter_id = f"class_{book_obj.standard}_{book_obj.subject.lower().replace(' ', '_')}_chapter_{chapter_num}"
             
-            # Get chapter order (count existing chapters + 1)
+            # Normalize class format for querying
+            class_number_normalized = f"Class {book_obj.standard}" if not str(book_obj.standard).lower().startswith('class') else str(book_obj.standard)
+            
+            # Get chapter order based on SAME class AND subject
             from students.models import QuizChapter
             existing_chapters = QuizChapter.objects.filter(
-                class_number=book_obj.standard,
+                class_number=class_number_normalized,  # Use normalized format
                 subject=book_obj.subject
             ).count()
             chapter_order = existing_chapters + 1
+            
+            logger.info(f"📊 Chapter order calculation: {existing_chapters} existing chapters for {class_number_normalized}/{book_obj.subject}, new chapter_order={chapter_order}")
             
             # Generate quiz
             quiz_result = generate_quiz_with_textbook_questions(

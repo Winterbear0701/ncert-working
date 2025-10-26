@@ -122,6 +122,7 @@ def reset_database():
     
     # 3. Clear Vector Database (Pinecone)
     print(f"\n☁️  Clearing Pinecone vector database...")
+    pinecone_cleared = False
     try:
         from pinecone import Pinecone
         api_key = os.getenv('PINECONE_API_KEY')
@@ -133,14 +134,31 @@ def reset_database():
             
             # Delete all vectors from index
             index.delete(delete_all=True)
+            pinecone_cleared = True
             print("✅ Pinecone vectors cleared successfully")
         else:
             print("⚠️  Pinecone API key not configured, skipping")
     except Exception as e:
-        print(f"❌ Error clearing index: {e}")
-        print("✅ Pinecone vectors cleared successfully")
+        print(f"❌ Error clearing Pinecone index: {e}")
+        pinecone_cleared = False
     
-    # 4. Clear media files (uploaded PDFs, etc.)
+    # 4. Delete old ChromaDB data folder (not used in production)
+    chromadb_path = 'chromadb_data'
+    if os.path.exists(chromadb_path):
+        print(f"\n🗑️  Deleting old ChromaDB data folder: {chromadb_path}")
+        import shutil
+        shutil.rmtree(chromadb_path)
+        print("✅ ChromaDB data folder deleted (using Pinecone in production)")
+    
+    # 4b. Clean up archive folder (old logs)
+    archive_path = 'archive'
+    if os.path.exists(archive_path):
+        print(f"\n🗑️  Cleaning archive folder: {archive_path}")
+        import shutil
+        shutil.rmtree(archive_path)
+        print("✅ Archive folder deleted (old logs removed)")
+    
+    # 5. Clear media files (uploaded PDFs, etc.)
     media_path = 'media'
     if os.path.exists(media_path):
         print(f"\n📦 Clearing media files: {media_path}")
@@ -153,7 +171,7 @@ def reset_database():
                     deleted_files += 1
         print(f"✅ Media files cleared successfully ({deleted_files} files deleted)")
     
-    # 5. Run migrations (create schema in-memory SQLite)
+    # 6. Run migrations (create schema in-memory SQLite)
     print("\n🔧 Running Django migrations...")
     call_command('migrate', verbosity=1)
     print("✅ Migrations completed successfully")
@@ -164,7 +182,11 @@ def reset_database():
         print("   ✅ MongoDB Atlas: All collections deleted")
     else:
         print("   ⚠️  MongoDB Atlas: Skipped (check connection)")
-    print("   ✅ Pinecone: All vectors deleted")
+    if pinecone_cleared:
+        print("   ✅ Pinecone: All vectors deleted")
+    else:
+        print("   ⚠️  Pinecone: Not cleared (check connection)")
+    print("   ✅ ChromaDB: Old data folder removed")
     print("   ✅ Media files: All uploads deleted")
     print("   ✅ Migrations: Schema created in memory")
     print("=" * 60)

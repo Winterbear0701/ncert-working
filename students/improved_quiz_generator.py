@@ -73,7 +73,7 @@ def generate_mcqs_from_textbook_questions(textbook_questions: List[Dict], conten
         else:
             language_level = "advanced language for 15+ year olds"
         
-        # Prepare questions for AI
+        # Prepare questions for AI - EXACTLY 10 questions needed
         questions_text = "\n".join([f"{i+1}. {q['text']}" for i, q in enumerate(textbook_questions[:10])])
         
         prompt = f"""You are converting textbook reflection questions into MCQs for Class {class_num} students.
@@ -84,22 +84,23 @@ TEXTBOOK QUESTIONS:
 CHAPTER CONTENT (for context):
 {content[:3000]}
 
-TASK: Convert EACH question into a 4-option MCQ with 3 variants.
+TASK: Convert EACH question into a 4-option MCQ with EXACTLY 5 variants.
 
-REQUIREMENTS:
-1. Use {language_level}
-2. Keep the original question's intent and difficulty
-3. Create exactly 4 options (A, B, C, D) per question
-4. Generate 3 variants (different wording, same concept)
-5. Extract relevant RAG context from the content
-6. Mix difficulty: label as easy/medium/hard based on original question complexity
-7. EXPLANATIONS: Keep SHORT (2-3 sentences max), simple, plain text - NO markdown (no *, #, **, _)
+CRITICAL REQUIREMENTS:
+1. Generate EXACTLY 10 QUESTIONS (if textbook has fewer, create content-based questions to reach 10)
+2. Each question MUST have EXACTLY 5 VARIANTS (different wording, same concept)
+3. Use {language_level}
+4. Keep the original question's intent and difficulty
+5. Create exactly 4 options (A, B, C, D) per question
+6. Extract relevant RAG context from the content
+7. Mix difficulty: label as easy/medium/hard based on original question complexity
+8. EXPLANATIONS: Keep SHORT (2-3 sentences max), simple, plain text - NO markdown (no *, #, **, _)
 
 EXPLANATION RULES:
 ✅ GOOD: "The answer is B because rivers flow from mountains to the sea. Water always moves downward due to gravity."
 ❌ BAD: "**Rivers flow from mountains to the sea.** This is because of *gravity* which pulls water downward. Rivers start high up..."
 
-OUTPUT FORMAT (JSON):
+OUTPUT FORMAT (JSON) - MUST return array with exactly 10 questions:
 [
   {{
     "original_question": "Original textbook question",
@@ -129,24 +130,62 @@ OUTPUT FORMAT (JSON):
         "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
         "correct": "A",
         "explanation": "Explanation for variant 3"
+      }},
+      {{
+        "question": "Variant 4 wording?",
+        "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
+        "correct": "D",
+        "explanation": "Explanation for variant 4"
+      }},
+      {{
+        "question": "Variant 5 wording?",
+        "options": {{"A": "...", "B": "...", "C": "...", "D": "..."}},
+        "correct": "B",
+        "explanation": "Explanation for variant 5"
       }}
     ]
-  }}
+  }},
+  ... (repeat for all 10 questions - total of 10 questions × 5 variants = 50 total variants)
 ]
 
-Return ONLY the JSON array."""
+IMPORTANT: You MUST return exactly 10 questions. If textbook has less than 10 "Let us reflect" questions, create additional questions from the chapter content to reach exactly 10 questions.
+
+⚠️  CRITICAL JSON FORMATTING:
+1. Use ONLY double quotes (") - NO single quotes (')
+2. NO trailing commas before closing brackets
+3. Escape special characters in text (use \\" for quotes inside strings)
+4. NO comments (// or /* */)
+5. Ensure all brackets are properly closed
+6. Test your JSON is valid before returning
+
+Return ONLY the JSON array - no markdown, no extra text."""
         
-        # Use Gemini (primary)
+        # Use Gemini with retry logic
         result_text = None
+        max_retries = 3
+        
         if gemini_api_key:
-            try:
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
-                response = model.generate_content(prompt)
-                result_text = response.text
-                logger.info("✅ Gemini converted textbook questions to MCQs")
-            except Exception as e:
-                logger.error(f"Gemini error: {e}")
-                return []
+            for attempt in range(max_retries):
+                try:
+                    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                    response = model.generate_content(
+                        prompt,
+                        generation_config={
+                            'temperature': 0.3 if attempt == 0 else 0.1,  # Lower temp on retry
+                            'top_p': 0.8,
+                            'top_k': 40,
+                        }
+                    )
+                    result_text = response.text
+                    logger.info(f"✅ Gemini converted textbook questions to MCQs (attempt {attempt + 1})")
+                    break  # Success, exit retry loop
+                except Exception as e:
+                    logger.warning(f"⚠️  Gemini attempt {attempt + 1} failed: {e}")
+                    if attempt == max_retries - 1:
+                        logger.error(f"❌ All Gemini attempts failed")
+                        return []
+                    import time
+                    time.sleep(1)  # Brief pause before retry
         
         if not result_text:
             logger.error("❌ No AI service available")
@@ -160,9 +199,64 @@ Return ONLY the JSON array."""
             result_text = result_text[3:]
         if result_text.endswith('```'):
             result_text = result_text[:-3]
+        result_text = result_text.strip()
         
-        questions = json.loads(result_text.strip())
-        logger.info(f"✅ Generated {len(questions)} MCQs from textbook questions")
+        # Try to parse JSON with error recovery
+        questions = None
+        try:
+            questions = json.loads(result_text)
+            logger.info(f"✅ Generated {len(questions)} MCQs from textbook questions")
+        except json.JSONDecodeError as e:
+            logger.warning(f"⚠️  JSON parse error at line {e.lineno}: {e.msg}")
+            logger.warning(f"   Error position: char {e.pos}")
+            # Log the problematic section (100 chars around error)
+            error_start = max(0, e.pos - 50)
+            error_end = min(len(result_text), e.pos + 50)
+            logger.warning(f"   Context: ...{result_text[error_start:error_end]}...")
+            logger.warning(f"   Attempting to fix malformed JSON...")
+            
+            # Common JSON fixes
+            fixed_text = result_text
+            
+            # Fix trailing commas
+            fixed_text = re.sub(r',(\s*[}\]])', r'\1', fixed_text)
+            
+            # Fix unquoted property names
+            fixed_text = re.sub(r'(\{|,)\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*:', r'\1"\2":', fixed_text)
+            
+            # Fix single quotes to double quotes
+            fixed_text = fixed_text.replace("'", '"')
+            
+            # Remove comments
+            fixed_text = re.sub(r'//.*?\n', '\n', fixed_text)
+            fixed_text = re.sub(r'/\*.*?\*/', '', fixed_text, flags=re.DOTALL)
+            
+            # Try parsing fixed JSON
+            try:
+                questions = json.loads(fixed_text)
+                logger.info(f"✅ Fixed and parsed JSON: {len(questions)} questions")
+            except json.JSONDecodeError as e2:
+                logger.error(f"❌ Could not fix JSON. Error: {e2}")
+                
+                # Last resort: Extract valid JSON portion
+                try:
+                    # Find the first [ and last ]
+                    start_idx = fixed_text.find('[')
+                    end_idx = fixed_text.rfind(']')
+                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                        truncated = fixed_text[start_idx:end_idx+1]
+                        # Try to close any unclosed objects
+                        open_braces = truncated.count('{') - truncated.count('}')
+                        if open_braces > 0:
+                            truncated = truncated.rstrip(',') + '}' * open_braces
+                        questions = json.loads(truncated)
+                        logger.info(f"✅ Extracted partial JSON: {len(questions)} questions")
+                except:
+                    logger.error(f"❌ All JSON repair attempts failed")
+                    return []
+        
+        if not questions:
+            return []
         
         return questions
         
@@ -175,20 +269,23 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
     """
     NEW APPROACH: Generate quizzes prioritizing textbook "Let us reflect" questions
     Falls back to AI generation if needed
+    Uses Pinecone (production) or ChromaDB (local) via vector_db_utils
     """
-    from ncert_project.chromadb_utils import get_chromadb_manager
+    from ncert_project.vector_db_utils import get_vector_db_manager
     from students.models import QuizChapter, QuizQuestion, QuestionVariant
     
     try:
-        # Get ChromaDB content
-        chroma_manager = get_chromadb_manager()
-        logger.info(f"🔍 Fetching content for: {chapter_name} (Class {class_num}, {subject})")
+        # Get Vector DB manager (Pinecone in production, ChromaDB local)
+        vector_manager = get_vector_db_manager()
+        db_type = "Pinecone" if hasattr(vector_manager, 'index_name') else "ChromaDB"
+        logger.info(f"🔍 Fetching content from {db_type} for: {chapter_name} (Class {class_num}, {subject})")
+        logger.info(f"   Parameters: class_num={class_num}, subject={subject}, chapter={chapter_name}")
         
         # Build specific query for this chapter - CRITICAL: Filter by chapter!
         query_text = f"{subject} {chapter_name} content summary questions"
         
         # IMPORTANT: Pass chapter parameter to filter results to ONLY this chapter
-        results = chroma_manager.query_by_class_subject_chapter(
+        results = vector_manager.query_by_class_subject_chapter(
             query_text=query_text,
             class_num=str(class_num),
             subject=subject,
@@ -196,10 +293,12 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
             n_results=50  # Get comprehensive content from THIS CHAPTER ONLY
         )
         
+        logger.info(f"   Query returned: {len(results.get('documents', [[]])[0])} chunks")
+        
         if not results or not results.get("documents") or not results["documents"][0]:
-            logger.error(f"❌ No ChromaDB content for {chapter_id}")
+            logger.error(f"❌ No content in {db_type} for {chapter_id}")
             logger.error(f"   Tried to find: Class {class_num}, Subject: {subject}, Chapter: {chapter_name}")
-            return {"status": "error", "success": False, "error": "No content in ChromaDB"}
+            return {"status": "error", "success": False, "error": f"No content in {db_type}"}
         
         # Combine all documents
         documents = results["documents"][0]
@@ -207,7 +306,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         
         # Verify we got the right chapter content
         if metadatas:
-            logger.info(f"📚 Retrieved from: {metadatas[0].get('class')} - {metadatas[0].get('subject')} - {metadatas[0].get('chapter')}")
+            logger.info(f"📚 Retrieved from {db_type}: {metadatas[0].get('class')} - {metadatas[0].get('subject')} - {metadatas[0].get('chapter')}")
         
         full_content = "\n\n".join(documents)
         
@@ -218,20 +317,41 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         logger.info(f"📝 Found {len(textbook_questions)} textbook reflection questions")
         
         # STEP 2: Convert to MCQs
+        mcq_data = []
         if textbook_questions:
             mcq_data = generate_mcqs_from_textbook_questions(textbook_questions, full_content, class_num)
-        else:
-            logger.warning("⚠️ No textbook questions found, generating from content")
+        
+        # If textbook MCQ generation failed or no textbook questions, use fallback
+        if not mcq_data:
+            logger.warning("⚠️ No MCQs from textbook questions, generating from content")
             # Fallback to regular AI generation
-            from students.quiz_generator import generate_mcq_questions_with_ai
-            mcq_data = generate_mcq_questions_with_ai(full_content, chapter_name, class_num)
+            try:
+                from students.quiz_generator import generate_mcq_questions_with_ai
+                mcq_data = generate_mcq_questions_with_ai(full_content, chapter_name, class_num)
+            except Exception as fallback_err:
+                logger.error(f"❌ Fallback generation failed: {fallback_err}")
         
         if not mcq_data:
-            logger.error("❌ Failed to generate MCQs")
-            return {"success": False, "error": "Failed to generate questions"}
+            logger.error("❌ Failed to generate MCQs from all methods")
+            return {"success": False, "error": "Failed to generate questions after all attempts"}
         
-        # Ensure exactly 10 questions (or use what we have)
-        mcq_data = mcq_data[:10]
+        # CRITICAL: Ensure EXACTLY 10 questions
+        if len(mcq_data) < 10:
+            logger.warning(f"⚠️ Only {len(mcq_data)} questions generated, need exactly 10")
+            # Generate additional questions to reach 10
+            from students.quiz_generator import generate_mcq_questions_with_ai
+            additional_needed = 10 - len(mcq_data)
+            logger.info(f"🔄 Generating {additional_needed} additional questions from content...")
+            additional_mcqs = generate_mcq_questions_with_ai(full_content, chapter_name, class_num, num_questions=additional_needed)
+            if additional_mcqs:
+                mcq_data.extend(additional_mcqs[:additional_needed])
+        
+        # Ensure exactly 10 questions (trim if more, keep all if less)
+        if len(mcq_data) > 10:
+            mcq_data = mcq_data[:10]
+            logger.info(f"✂️ Trimmed to exactly 10 questions")
+        
+        logger.info(f"📊 Final question count: {len(mcq_data)} questions")
         
         # STEP 3: Create/update database records
         quiz_chapter, created = QuizChapter.objects.get_or_create(
@@ -242,7 +362,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
                 'chapter_number': chapter_order,
                 'chapter_name': chapter_name,
                 'chapter_order': chapter_order,
-                'total_questions': len(mcq_data),
+                'total_questions': 10,  # Always 10 questions
                 'passing_percentage': 70,
                 'is_active': True
             }
@@ -251,7 +371,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         if not created:
             # Delete old questions
             QuizQuestion.objects.filter(chapter=quiz_chapter).delete()
-            quiz_chapter.total_questions = len(mcq_data)
+            quiz_chapter.total_questions = 10  # Always 10 questions
             quiz_chapter.save()
         
         # Create questions and variants

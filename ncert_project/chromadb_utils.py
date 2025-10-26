@@ -25,7 +25,28 @@ class ChromaDBManager:
     """
     
     def __init__(self):
+        """
+        Initialize ChromaDB Manager with lazy loading.
+        NOTE: In production, use vector_db_utils which switches to Pinecone.
+        This class is kept for backward compatibility only.
+        """
+        self.client = None
+        self.collection = None
+        self._initialized = False
+    
+    def _ensure_initialized(self):
+        """Lazy initialization - only create client when first needed"""
+        if self._initialized:
+            return
+            
         try:
+            # Only check VECTOR_DB setting
+            vector_db = os.getenv('VECTOR_DB', 'chromadb').lower()
+            if vector_db != 'chromadb':
+                logger.warning(f"⚠️  ChromaDB requested but VECTOR_DB={vector_db}. Use vector_db_utils instead.")
+                # Don't create ChromaDB folder if using Pinecone
+                return
+            
             self.client = chromadb.PersistentClient(
                 path=settings.CHROMA_PERSIST_DIRECTORY
             )
@@ -38,6 +59,7 @@ class ChromaDBManager:
                 }
             )
             
+            self._initialized = True
             logger.info(f"✅ ChromaDB initialized: {settings.CHROMA_COLLECTION_NAME}")
             logger.info(f"📊 Current document count: {self.collection.count()}")
             
@@ -106,6 +128,8 @@ class ChromaDBManager:
         Returns:
             Total number of chunks added
         """
+        self._ensure_initialized()  # Lazy init
+        
         try:
             total_added = 0
             
@@ -190,6 +214,8 @@ class ChromaDBManager:
         Returns:
             Query results with documents and metadata
         """
+        self._ensure_initialized()  # Lazy init
+        
         try:
             # Build where clause for filtering using $and operator for multiple conditions
             where_conditions = []
@@ -300,6 +326,8 @@ class ChromaDBManager:
     
     def get_stats(self) -> Dict:
         """Get statistics about stored documents"""
+        self._ensure_initialized()  # Lazy init
+        
         try:
             total_docs = self.collection.count()
             classes = self.get_available_classes()
