@@ -917,6 +917,95 @@ def unit_test_results(request, attempt_id):
 
 
 @login_required
+def unit_test_analytics(request, test_id):
+    """
+    View detailed analytics for a specific unit test
+    """
+    from .models import UnitTest, UnitTestAttempt, UnitTestAnswer
+    from django.shortcuts import get_object_or_404
+    from django.db.models import Avg, Max, Min, Count
+    
+    unit_test = get_object_or_404(UnitTest, id=test_id)
+    
+    # Get all attempts by this student for this test
+    attempts = UnitTestAttempt.objects.filter(
+        unit_test=unit_test,
+        student=request.user,
+        status='evaluated'
+    ).order_by('created_at')
+    
+    if not attempts.exists():
+        context = {
+            'unit_test': unit_test,
+            'attempts': None,
+        }
+        return render(request, 'students/unit_test_analytics.html', context)
+    
+    # Calculate statistics
+    scores = [attempt.total_marks_obtained for attempt in attempts]
+    percentages = [(score / unit_test.total_marks * 100) if unit_test.total_marks > 0 else 0 for score in scores]
+    
+    best_score = max(percentages)
+    average_score = sum(percentages) / len(percentages)
+    latest_score = percentages[-1] if percentages else 0
+    
+    # Calculate improvement
+    if len(percentages) >= 2:
+        improvement = percentages[-1] - percentages[0]
+    else:
+        improvement = 0
+    
+    # Get question-wise performance from best attempt
+    best_attempt = max(attempts, key=lambda a: a.total_marks_obtained)
+    answers = UnitTestAnswer.objects.filter(attempt=best_attempt).select_related('question')
+    
+    # Question-wise analysis
+    question_performance = []
+    for answer in answers:
+        question = answer.question
+        percentage_scored = (answer.awarded_marks / question.marks * 100) if question.marks > 0 else 0
+        
+        question_performance.append({
+            'question_number': question.question_number,
+            'question_text': question.question_text[:100] + '...' if len(question.question_text) > 100 else question.question_text,
+            'marks': question.marks,
+            'awarded_marks': answer.awarded_marks,
+            'percentage': round(percentage_scored, 1),
+            'content_score': answer.content_score * 100 if answer.content_score else 0,
+            'grammar_score': answer.grammar_score * 100 if answer.grammar_score else 0,
+            'feedback': answer.ai_feedback,
+        })
+    
+    # Calculate average content and grammar scores
+    content_scores = [q['content_score'] for q in question_performance]
+    grammar_scores = [q['grammar_score'] for q in question_performance]
+    
+    avg_content = sum(content_scores) / len(content_scores) if content_scores else 0
+    avg_grammar = sum(grammar_scores) / len(grammar_scores) if grammar_scores else 0
+    
+    # Prepare chart data
+    attempt_labels = [f"Attempt {i+1}" for i in range(len(percentages))]
+    
+    context = {
+        'unit_test': unit_test,
+        'attempts': attempts,
+        'total_attempts': len(attempts),
+        'best_score': round(best_score, 1),
+        'average_score': round(average_score, 1),
+        'latest_score': round(latest_score, 1),
+        'improvement': round(improvement, 1),
+        'question_performance': question_performance,
+        'avg_content': round(avg_content, 1),
+        'avg_grammar': round(avg_grammar, 1),
+        'attempt_labels': attempt_labels,
+        'percentages': percentages,
+        'best_attempt': best_attempt,
+    }
+    
+    return render(request, 'students/unit_test_analytics.html', context)
+
+
+@login_required
 def smart_test_analysis(request):
     """
     Smart probability-based test analysis

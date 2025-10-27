@@ -463,6 +463,10 @@
             <i class="fas fa-list"></i>
             Back to Tests
         </a>
+        <a href="{% url 'students:unit_test_analytics' attempt.unit_test.id %}" class="btn-primary">
+            <i class="fas fa-chart-line"></i>
+            View Analytics
+        </a>
         <a href="{% url 'students:student_dashboard' %}" class="btn-primary">
             <i class="fas fa-home"></i>
             Go to Dashboard

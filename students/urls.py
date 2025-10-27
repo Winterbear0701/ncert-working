@@ -32,4 +32,5 @@ urlpatterns = [
     path("unit-tests/submit/<int:attempt_id>/", views.unit_test_submit, name="unit_test_submit"),
     path("unit-tests/save-draft/<int:attempt_id>/", views.unit_test_save_draft, name="unit_test_save_draft"),
     path("unit-tests/results/<int:attempt_id>/", views.unit_test_results, name="unit_test_results"),
+    path("unit-tests/analytics/<int:test_id>/", views.unit_test_analytics, name="unit_test_analytics"),
 ]

@@ -179,6 +179,11 @@
                             <i class="fas fa-chart-bar mr-2"></i>
                             View Results
                         </a>
+                        <a href="{% url 'students:unit_test_analytics' data.test.id %}" 
+                           class="block w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-center font-semibold transform hover:scale-105">
+                            <i class="fas fa-chart-line mr-2"></i>
+                            View Analytics
+                        </a>
                     {% endif %}
                 </div>
 
