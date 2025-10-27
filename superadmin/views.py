@@ -290,41 +290,129 @@ def unit_test_list(request):
 
 @login_required
 @user_passes_test(is_superadmin)
+def get_subjects_api(request):
+    """
+    API endpoint to get subjects by class
+    """
+    from students.models import QuizChapter
+    
+    class_num = request.GET.get('class')
+    if not class_num:
+        return JsonResponse({'subjects': []})
+    
+    # Normalize class format
+    class_normalized = f"Class {class_num}" if not str(class_num).lower().startswith('class') else str(class_num)
+    
+    # Get unique subjects for this class
+    subjects = QuizChapter.objects.filter(
+        class_number=class_normalized
+    ).values_list('subject', flat=True).distinct().order_by('subject')
+    
+    return JsonResponse({'subjects': list(subjects)})
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def get_chapters_api(request):
+    """
+    API endpoint to get chapters by class and subject
+    """
+    from students.models import QuizChapter
+    
+    class_num = request.GET.get('class')
+    subject = request.GET.get('subject')
+    
+    if not class_num or not subject:
+        return JsonResponse({'chapters': []})
+    
+    # Normalize class format
+    class_normalized = f"Class {class_num}" if not str(class_num).lower().startswith('class') else str(class_num)
+    
+    # Get chapters for this class and subject
+    chapters = QuizChapter.objects.filter(
+        class_number=class_normalized,
+        subject=subject
+    ).order_by('chapter_order').values('id', 'chapter_number', 'chapter_title')
+    
+    # Format chapter names
+    chapter_list = [
+        {
+            'id': ch['id'],
+            'name': f"Chapter {ch['chapter_number']}: {ch['chapter_title']}"
+        }
+        for ch in chapters
+    ]
+    
+    return JsonResponse({'chapters': chapter_list})
+
+
+@login_required
+@user_passes_test(is_superadmin)
 def unit_test_create(request):
     """
-    Create a new unit test (manual or from uploaded document)
+    Create a new unit test with questions organized by marks
     """
-    from students.models import UnitTest, QuizChapter
+    from students.models import UnitTest, UnitTestQuestion, QuizChapter
+    import json
     
     if request.method == 'POST':
         title = request.POST.get('title')
-        chapter_ids = request.POST.getlist('chapters')  # Changed to getlist for multiple chapters
-        description = request.POST.get('description', '')
-        total_marks = request.POST.get('total_marks', 100)
-        duration_minutes = request.POST.get('duration_minutes', 60)
-        passing_marks = request.POST.get('passing_marks', 40)
-        is_active = request.POST.get('is_active') == 'on'
+        class_num = request.POST.get('class')
+        subject = request.POST.get('subject')
+        chapter_ids = request.POST.getlist('chapters')
+        total_marks = int(request.POST.get('total_marks', 100))
+        duration_minutes = int(request.POST.get('duration_minutes', 60))
+        passing_marks = int(request.POST.get('passing_marks', 40))
         
-        # Create unit test without chapters first
+        # Parse questions from POST data
+        questions_data = []
+        question_index = 0
+        while True:
+            question_text = request.POST.get(f'questions[{question_index}][text]')
+            if not question_text:
+                break
+            
+            questions_data.append({
+                'text': question_text,
+                'answer': request.POST.get(f'questions[{question_index}][answer]', ''),
+                'marks': int(request.POST.get(f'questions[{question_index}][marks]', 1))
+            })
+            question_index += 1
+        
+        # Create unit test
         unit_test = UnitTest.objects.create(
             title=title,
-            description=description,
+            description=f"Class {class_num} - {subject}",
             total_marks=total_marks,
             duration_minutes=duration_minutes,
             passing_marks=passing_marks,
-            is_active=is_active,
+            is_active=True,
             created_by=request.user
         )
         
-        # Add multiple chapters
+        # Add chapters
         if chapter_ids:
             unit_test.chapters.set(chapter_ids)
         
+        # Create questions
+        for idx, q_data in enumerate(questions_data, start=1):
+            UnitTestQuestion.objects.create(
+                unit_test=unit_test,
+                question_number=idx,
+                question_text=q_data['text'],
+                model_answer=q_data['answer'],
+                marks=q_data['marks']
+            )
+        
+        messages.success(request, f'Unit test "{title}" created successfully with {len(questions_data)} questions!')
         return redirect('superadmin:unit_test_detail', test_id=unit_test.id)
     
-    chapters = QuizChapter.objects.all().order_by('chapter_number')
+    # GET request - show form
+    class_list = ['Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10']
     
-    return render(request, 'superadmin/unit_test_create.html', {'chapters': chapters})
+    return render(request, 'superadmin/unit_test_create_new.html', {
+        'class_list': class_list
+    })
 
 
 @login_required

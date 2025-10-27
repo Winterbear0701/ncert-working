@@ -18,6 +18,27 @@
     .input-group:focus-within {
         transform: scale(1.02);
     }
+    .question-card {
+        transition: all 0.3s ease;
+    }
+    .question-card:hover {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .mark-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 50px;
+        height: 32px;
+        padding: 0 12px;
+        font-weight: 600;
+        border-radius: 6px;
+    }
+    .mark-1 { background: #E0F2FE; color: #0369A1; }
+    .mark-2 { background: #DBEAFE; color: #1E40AF; }
+    .mark-3 { background: #DDD6FE; color: #5B21B6; }
+    .mark-5 { background: #FCE7F3; color: #9F1239; }
+    .mark-other { background: #FEF3C7; color: #92400E; }
 </style>
 {% endblock %}
 

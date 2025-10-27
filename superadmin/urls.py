@@ -11,6 +11,10 @@ urlpatterns = [
     path('uploads/<int:upload_id>/status/', views.upload_status, name='upload_status'),
     path('uploads/<int:upload_id>/delete/', views.delete_upload, name='delete_upload'),
     
+    # API Endpoints
+    path('api/get-subjects/', views.get_subjects_api, name='get_subjects_api'),
+    path('api/get-chapters/', views.get_chapters_api, name='get_chapters_api'),
+    
     # Unit Test Management
     path('unit-tests/', views.unit_test_list, name='unit_test_list'),
     path('unit-tests/create/', views.unit_test_create, name='unit_test_create'),
