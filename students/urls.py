@@ -30,5 +30,6 @@ urlpatterns = [
     path("unit-tests/<int:test_id>/start/", views.unit_test_start, name="unit_test_start"),
     path("unit-tests/take/<int:attempt_id>/", views.unit_test_take, name="unit_test_take"),
     path("unit-tests/submit/<int:attempt_id>/", views.unit_test_submit, name="unit_test_submit"),
+    path("unit-tests/save-draft/<int:attempt_id>/", views.unit_test_save_draft, name="unit_test_save_draft"),
     path("unit-tests/results/<int:attempt_id>/", views.unit_test_results, name="unit_test_results"),
 ]

@@ -222,6 +222,46 @@ def process_uploaded_book_sync(uploaded_book_id):
             batch_size=100
         )
         
+        # ==================== SAVE CHAPTER METADATA TO MONGODB ====================
+        # Save chapter info to MongoDB for unit test chapter selection
+        logger.info(f"💾 Saving chapter metadata to MongoDB...")
+        try:
+            from ncert_project.mongodb_utils import get_mongo_db
+            db = get_mongo_db()
+            
+            # Normalize class format
+            class_number_normalized = f"Class {book_obj.standard}" if not str(book_obj.standard).lower().startswith('class') else str(book_obj.standard)
+            
+            # Extract chapter number from chapter name
+            chapter_num = book_obj.chapter.replace('Chapter', '').replace('chapter', '').strip()
+            if ':' in chapter_num:
+                chapter_num = chapter_num.split(':')[0].strip()
+            
+            # Create chapter_id in format: class_X_subject_chapter_Y
+            chapter_id = f"class_{book_obj.standard}_{book_obj.subject.lower().replace(' ', '_')}_chapter_{chapter_num}"
+            
+            # Save to book_chapters collection (separate from quiz_chapters)
+            db.book_chapters.update_one(
+                {'chapter_id': chapter_id},
+                {'$set': {
+                    'chapter_id': chapter_id,
+                    'class_number': class_number_normalized,
+                    'subject': book_obj.subject,
+                    'chapter_number': chapter_num,
+                    'chapter_name': book_obj.chapter,
+                    'source_file': book_obj.original_filename,
+                    'uploaded_at': datetime.utcnow(),
+                    'total_chunks': total_added
+                }},
+                upsert=True
+            )
+            
+            logger.info(f"✅ Chapter metadata saved: {class_number_normalized} - {book_obj.subject} - {book_obj.chapter}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save chapter metadata to MongoDB: {e}")
+            # Don't fail the entire upload if metadata save fails
+        
         # ==================== AUTO-GENERATE MCQs ====================
         logger.info(f"🎯 Auto-generating MCQs for uploaded chapter...")
         
@@ -394,6 +434,52 @@ def process_uploaded_book(self, uploaded_book_id):
             source_file=book_obj.original_filename,
             batch_size=100
         )
+        
+        # Update progress
+        self.update_state(
+            state='PROGRESS',
+            meta={'current': total_added, 'total': len(chunks), 'percent': 75, 'status': 'Saving chapter metadata'}
+        )
+        
+        # ==================== SAVE CHAPTER METADATA TO MONGODB ====================
+        # Save chapter info to MongoDB for unit test chapter selection
+        logger.info(f"💾 Saving chapter metadata to MongoDB...")
+        try:
+            from ncert_project.mongodb_utils import get_mongo_db
+            db = get_mongo_db()
+            
+            # Normalize class format
+            class_number_normalized = f"Class {book_obj.standard}" if not str(book_obj.standard).lower().startswith('class') else str(book_obj.standard)
+            
+            # Extract chapter number from chapter name
+            chapter_num = book_obj.chapter.replace('Chapter', '').replace('chapter', '').strip()
+            if ':' in chapter_num:
+                chapter_num = chapter_num.split(':')[0].strip()
+            
+            # Create chapter_id in format: class_X_subject_chapter_Y
+            chapter_id = f"class_{book_obj.standard}_{book_obj.subject.lower().replace(' ', '_')}_chapter_{chapter_num}"
+            
+            # Save to book_chapters collection (separate from quiz_chapters)
+            db.book_chapters.update_one(
+                {'chapter_id': chapter_id},
+                {'$set': {
+                    'chapter_id': chapter_id,
+                    'class_number': class_number_normalized,
+                    'subject': book_obj.subject,
+                    'chapter_number': chapter_num,
+                    'chapter_name': book_obj.chapter,
+                    'source_file': book_obj.original_filename,
+                    'uploaded_at': datetime.utcnow(),
+                    'total_chunks': total_added
+                }},
+                upsert=True
+            )
+            
+            logger.info(f"✅ Chapter metadata saved: {class_number_normalized} - {book_obj.subject} - {book_obj.chapter}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save chapter metadata to MongoDB: {e}")
+            # Don't fail the entire upload if metadata save fails
         
         # Update progress
         self.update_state(

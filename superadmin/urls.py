@@ -14,6 +14,10 @@ urlpatterns = [
     # API Endpoints
     path('api/get-subjects/', views.get_subjects_api, name='get_subjects_api'),
     path('api/get-chapters/', views.get_chapters_api, name='get_chapters_api'),
+    path('api/get-saved-questions/', views.get_saved_questions_api, name='get_saved_questions_api'),
+    
+    # Saved Questions Management
+    path('saved-questions/', views.saved_questions_manage, name='saved_questions_manage'),
     
     # Unit Test Management
     path('unit-tests/', views.unit_test_list, name='unit_test_list'),
@@ -21,6 +25,8 @@ urlpatterns = [
     path('unit-tests/upload/', views.unit_test_upload_questions, name='unit_test_upload_questions'),
     path('unit-tests/preview/', views.unit_test_preview_upload, name='unit_test_preview_upload'),
     path('unit-tests/<int:test_id>/', views.unit_test_detail, name='unit_test_detail'),
+    path('unit-tests/<int:test_id>/delete/', views.unit_test_delete, name='unit_test_delete'),
+    path('unit-tests/<int:test_id>/toggle-status/', views.unit_test_toggle_status, name='unit_test_toggle_status'),
     path('unit-tests/<int:test_id>/add-question/', views.unit_test_add_question, name='unit_test_add_question'),
     path('unit-tests/questions/<int:question_id>/edit/', views.unit_test_edit_question, name='unit_test_edit_question'),
     path('unit-tests/questions/<int:question_id>/delete/', views.unit_test_delete_question, name='unit_test_delete_question'),

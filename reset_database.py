@@ -76,6 +76,14 @@ def reset_mongodb_atlas():
         for col in collections:
             print(f"   • {col}")
         
+        # Special handling for unit test questions (saved questions bank)
+        if 'unit_test_questions' in collections:
+            print("\n📝 Clearing unit test saved questions...")
+            unit_test_count = db['unit_test_questions'].count_documents({})
+            if unit_test_count > 0:
+                db['unit_test_questions'].delete_many({})
+                print(f"   ✅ Deleted {unit_test_count} saved unit test questions")
+        
         # Delete all collections
         print("\n🔥 Deleting all collections...")
         deleted_count = 0
@@ -251,8 +259,10 @@ def main():
     print("      • All quiz chapters, questions, and variants")
     print("      • All quiz attempts and scores")
     print("      • All unit tests and evaluations")
+    print("      • All saved unit test questions (question bank)")
     print("      • All chat history, cache, and memories")
     print("      • All upload metadata")
+    print("      • All book chapters metadata")
     print("\n   ☁️  Pinecone (Cloud Vector Database):")
     print("      • All PDF text chunks")
     print("      • All embeddings for RAG")

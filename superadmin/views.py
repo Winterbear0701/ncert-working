@@ -292,32 +292,46 @@ def unit_test_list(request):
 @user_passes_test(is_superadmin)
 def get_subjects_api(request):
     """
-    API endpoint to get subjects by class
+    API endpoint to get subjects by class from MongoDB book_chapters
     """
-    from students.models import QuizChapter
+    from ncert_project.mongodb_utils import get_mongo_db
     
     class_num = request.GET.get('class')
     if not class_num:
         return JsonResponse({'subjects': []})
     
-    # Normalize class format
-    class_normalized = f"Class {class_num}" if not str(class_num).lower().startswith('class') else str(class_num)
+    try:
+        # Normalize class format
+        class_normalized = f"Class {class_num}" if not str(class_num).lower().startswith('class') else str(class_num)
+        
+        # Get MongoDB connection
+        db = get_mongo_db()
+        
+        # Query book_chapters collection (saved during PDF upload)
+        book_chapters = db.book_chapters
+        
+        # Get distinct subjects for this class
+        subjects = book_chapters.distinct('subject', {'class_number': class_normalized})
+        
+        # Sort subjects
+        subjects = sorted(subjects) if subjects else []
+        
+        logger.info(f"📚 Found {len(subjects)} subjects for {class_normalized} from book_chapters")
+        
+        return JsonResponse({'subjects': subjects})
     
-    # Get unique subjects for this class
-    subjects = QuizChapter.objects.filter(
-        class_number=class_normalized
-    ).values_list('subject', flat=True).distinct().order_by('subject')
-    
-    return JsonResponse({'subjects': list(subjects)})
+    except Exception as e:
+        logger.exception(f"Error getting subjects: {e}")
+        return JsonResponse({'subjects': [], 'error': str(e)}, status=500)
 
 
 @login_required
 @user_passes_test(is_superadmin)
 def get_chapters_api(request):
     """
-    API endpoint to get chapters by class and subject
+    API endpoint to get chapters by class and subject from MongoDB book_chapters
     """
-    from students.models import QuizChapter
+    from ncert_project.mongodb_utils import get_mongo_db
     
     class_num = request.GET.get('class')
     subject = request.GET.get('subject')
@@ -325,25 +339,80 @@ def get_chapters_api(request):
     if not class_num or not subject:
         return JsonResponse({'chapters': []})
     
-    # Normalize class format
-    class_normalized = f"Class {class_num}" if not str(class_num).lower().startswith('class') else str(class_num)
+    try:
+        # Normalize class format
+        class_normalized = f"Class {class_num}" if not str(class_num).lower().startswith('class') else str(class_num)
+        
+        # Get MongoDB connection
+        db = get_mongo_db()
+        
+        # Query book_chapters collection (saved during PDF upload)
+        book_chapters = db.book_chapters
+        
+        # Get chapters for this class and subject
+        chapters_cursor = book_chapters.find(
+            {
+                'class_number': class_normalized,
+                'subject': subject
+            },
+            {
+                '_id': 1,
+                'chapter_id': 1,
+                'chapter_number': 1,
+                'chapter_name': 1
+            }
+        ).sort('chapter_number', 1)  # Sort by chapter number
+        
+        # Format chapter list
+        chapter_list = []
+        for ch in chapters_cursor:
+            chapter_num = ch.get('chapter_number', '?')
+            chapter_name = ch.get('chapter_name', 'Unknown')
+            
+            chapter_list.append({
+                'id': ch.get('chapter_id', str(ch.get('_id'))),
+                'name': chapter_name  # Use full chapter name (already has "Chapter X:" format)
+            })
+        
+        logger.info(f"📖 Found {len(chapter_list)} chapters for {class_normalized} - {subject}")
+        
+        return JsonResponse({'chapters': chapter_list})
     
-    # Get chapters for this class and subject
-    chapters = QuizChapter.objects.filter(
-        class_number=class_normalized,
-        subject=subject
-    ).order_by('chapter_order').values('id', 'chapter_number', 'chapter_title')
-    
-    # Format chapter names
-    chapter_list = [
-        {
-            'id': ch['id'],
-            'name': f"Chapter {ch['chapter_number']}: {ch['chapter_title']}"
-        }
-        for ch in chapters
-    ]
-    
-    return JsonResponse({'chapters': chapter_list})
+    except Exception as e:
+        logger.exception(f"Error getting chapters: {e}")
+        return JsonResponse({'chapters': [], 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def get_saved_questions_api(request):
+    """Return saved questions from centralized MongoDB question bank.
+
+    Query params: class, subject, chapter_id, q (search text)
+    """
+    try:
+        from . import mongo_questions
+    except Exception:
+        return JsonResponse({'questions': []})
+
+    class_num = request.GET.get('class')
+    subject = request.GET.get('subject')
+    chapter_id = request.GET.get('chapter_id')
+    q = request.GET.get('q', '')
+
+    class_normalized = None
+    if class_num:
+        class_normalized = f'Class {class_num}' if not str(class_num).lower().startswith('class') else str(class_num)
+
+    results = mongo_questions.search_questions(class_name=class_normalized or '', subject=subject or '', chapter_id=chapter_id or None, query=q, limit=100)
+    return JsonResponse({'questions': results})
+
+
+@login_required
+@user_passes_test(is_superadmin)
+def saved_questions_manage(request):
+    """Render the saved questions management page."""
+    return render(request, 'superadmin/saved_questions.html', {})
 
 
 @login_required
@@ -356,14 +425,16 @@ def unit_test_create(request):
     import json
     
     if request.method == 'POST':
+        # Basic form fields
         title = request.POST.get('title')
         class_num = request.POST.get('class')
         subject = request.POST.get('subject')
         chapter_ids = request.POST.getlist('chapters')
-        total_marks = int(request.POST.get('total_marks', 100))
+        total_marks_type = int(request.POST.get('total_marks_type', 80))
+        total_marks = int(request.POST.get('total_marks', total_marks_type))
         duration_minutes = int(request.POST.get('duration_minutes', 60))
         passing_marks = int(request.POST.get('passing_marks', 40))
-        
+
         # Parse questions from POST data
         questions_data = []
         question_index = 0
@@ -371,30 +442,85 @@ def unit_test_create(request):
             question_text = request.POST.get(f'questions[{question_index}][text]')
             if not question_text:
                 break
-            
             questions_data.append({
                 'text': question_text,
                 'answer': request.POST.get(f'questions[{question_index}][answer]', ''),
                 'marks': int(request.POST.get(f'questions[{question_index}][marks]', 1))
             })
             question_index += 1
+
+        # Define required distributions for each test type
+        required_distributions = {
+            80: {1: 20, 2: 6, 3: 7, 4: 3, 5: 3},  # Full test
+            50: {1: 15, 2: 4, 3: 4, 4: 2, 5: 2},  # Half test
+            0: {}  # Practice test - no restrictions
+        }
+
+        # Enforce distribution only if not a practice test
+        if total_marks_type > 0:
+            required = required_distributions.get(total_marks_type, {})
+            counts = {}
+            for q in questions_data:
+                counts[q['marks']] = counts.get(q['marks'], 0) + 1
+
+            mismatch = []
+            for mark, req in required.items():
+                if counts.get(mark, 0) != req:
+                    mismatch.append(f"{mark}-mark: expected {req}, got {counts.get(mark,0)}")
+
+            if mismatch:
+                messages.error(request, 'Question distribution mismatch: ' + '; '.join(mismatch))
+                class_list = ['Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10']
+                return render(request, 'superadmin/unit_test_create_new.html', {
+                    'class_list': class_list,
+                    'error': 'Question distribution incorrect: ' + '; '.join(mismatch)
+                })
+
+        # Validate total marks
+        computed_total = sum(q['marks'] for q in questions_data)
+        if total_marks_type > 0 and computed_total != total_marks_type:
+            messages.error(request, f'Total marks must be {total_marks_type} (computed {computed_total})')
+            class_list = ['Class 5', 'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10']
+            return render(request, 'superadmin/unit_test_create_new.html', {
+                'class_list': class_list,
+                'error': f'Total marks must be {total_marks_type} (computed {computed_total})'
+            })
         
+        # Get chapter names from MongoDB for description
+        chapter_names = []
+        if chapter_ids:
+            from ncert_project.mongodb_utils import get_mongo_db
+            db = get_mongo_db()
+            for chapter_id in chapter_ids:
+                chapter_doc = db.book_chapters.find_one({'chapter_id': chapter_id})
+                if chapter_doc:
+                    chapter_names.append(chapter_doc.get('chapter_name', chapter_id))
+        
+        # Create descriptive text with chapters
+        chapters_text = ", ".join(chapter_names) if chapter_names else "Multiple Chapters"
+        description_text = f"Class {class_num} - {subject} - {chapters_text}"
+
         # Create unit test
         unit_test = UnitTest.objects.create(
             title=title,
-            description=f"Class {class_num} - {subject}",
-            total_marks=total_marks,
+            description=description_text,
+            total_marks=computed_total,
             duration_minutes=duration_minutes,
             passing_marks=passing_marks,
             is_active=True,
             created_by=request.user
         )
-        
-        # Add chapters
-        if chapter_ids:
-            unit_test.chapters.set(chapter_ids)
-        
-        # Create questions
+
+        # Note: We don't set chapters relationship here because chapter_ids are strings
+        # from book_chapters collection, not QuizChapter model IDs
+        # The chapter information is stored in the description and MongoDB questions
+
+        # Create questions and save to centralized MongoDB
+        try:
+            from . import mongo_questions
+        except Exception:
+            mongo_questions = None
+
         for idx, q_data in enumerate(questions_data, start=1):
             UnitTestQuestion.objects.create(
                 unit_test=unit_test,
@@ -403,7 +529,25 @@ def unit_test_create(request):
                 model_answer=q_data['answer'],
                 marks=q_data['marks']
             )
-        
+
+            # Save to MongoDB question bank (best-effort)
+            if mongo_questions:
+                payload = {
+                    'class': f'Class {class_num}' if not str(class_num).lower().startswith('class') else str(class_num),
+                    'subject': subject,
+                    'chapter_id': chapter_ids[0] if chapter_ids else None,  # Keep as string (e.g., "class_5_mathematics_chapter_1")
+                    'chapter_title': '',
+                    'question': q_data['text'],
+                    'answer': q_data['answer'],
+                    'marks': q_data['marks'],
+                    'created_by': request.user.email if hasattr(request.user, 'email') else str(request.user)
+                }
+                try:
+                    mongo_questions.save_question(payload)
+                except Exception:
+                    # swallow Mongo errors, this is non-critical
+                    logger.exception('Failed to save question to MongoDB')
+
         messages.success(request, f'Unit test "{title}" created successfully with {len(questions_data)} questions!')
         return redirect('superadmin:unit_test_detail', test_id=unit_test.id)
     
@@ -672,17 +816,68 @@ def unit_test_edit_question(request, question_id):
 
 @login_required
 @user_passes_test(is_superadmin)
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
 def unit_test_delete_question(request, question_id):
     """
     Delete a unit test question
     """
     from students.models import UnitTestQuestion
     
-    question = get_object_or_404(UnitTestQuestion, id=question_id)
-    test_id = question.unit_test.id
-    question.delete()
+    try:
+        question = get_object_or_404(UnitTestQuestion, id=question_id)
+        question.delete()
+        
+        return JsonResponse({'success': True, 'message': 'Question deleted successfully'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def unit_test_delete(request, test_id):
+    """
+    Delete an entire unit test and all its questions
+    """
+    from students.models import UnitTest
     
-    return redirect('superadmin:unit_test_detail', test_id=test_id)
+    try:
+        unit_test = get_object_or_404(UnitTest, id=test_id)
+        
+        # Delete associated questions (cascade should handle this, but being explicit)
+        unit_test.questions.all().delete()
+        
+        # Delete the test
+        unit_test.delete()
+        
+        return JsonResponse({'success': True, 'message': 'Unit test deleted successfully'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@user_passes_test(is_superadmin)
+@require_POST
+def unit_test_toggle_status(request, test_id):
+    """
+    Toggle unit test active/inactive status
+    """
+    from students.models import UnitTest
+    
+    try:
+        unit_test = get_object_or_404(UnitTest, id=test_id)
+        unit_test.is_active = not unit_test.is_active
+        unit_test.save()
+        
+        return JsonResponse({
+            'success': True, 
+            'is_active': unit_test.is_active,
+            'message': f'Test {"activated" if unit_test.is_active else "deactivated"} successfully'
+        })
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
 @login_required

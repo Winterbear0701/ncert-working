@@ -798,6 +798,49 @@ def unit_test_take(request, attempt_id):
 
 @login_required
 @require_POST
+def unit_test_save_draft(request, attempt_id):
+    """
+    Save draft answers without submitting
+    """
+    from .models import UnitTestAttempt, UnitTestAnswer
+    from django.shortcuts import get_object_or_404
+    from django.http import JsonResponse
+    
+    try:
+        attempt = get_object_or_404(UnitTestAttempt, id=attempt_id, student=request.user, status='in_progress')
+        
+        # Save all answers
+        questions = attempt.unit_test.questions.all()
+        saved_count = 0
+        
+        for question in questions:
+            answer_text = request.POST.get(f'answer_{question.id}', '').strip()
+            
+            if answer_text:
+                # Create or update answer
+                UnitTestAnswer.objects.update_or_create(
+                    attempt=attempt,
+                    question=question,
+                    defaults={'answer_text': answer_text}
+                )
+                saved_count += 1
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Draft saved successfully! {saved_count} answers saved.',
+            'saved_count': saved_count
+        })
+    
+    except Exception as e:
+        logger.error(f"Error saving draft for attempt {attempt_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Error saving draft. Please try again.'
+        }, status=500)
+
+
+@login_required
+@require_POST
 def unit_test_submit(request, attempt_id):
     """
     Submit unit test for evaluation

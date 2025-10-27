@@ -123,12 +123,17 @@
                 </div>
                 
                 <!-- Action Button -->
-                <div class="mb-3">
+                <div class="grid grid-cols-2 gap-2 mb-3">
                     <a href="{% url 'superadmin:unit_test_detail' test.id %}" 
-                       class="block w-full px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-center font-semibold transform hover:scale-105">
+                       class="px-4 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg text-center font-semibold transform hover:scale-105">
                         <i class="fas fa-cog mr-2"></i>
-                        Manage Questions
+                        Manage
                     </a>
+                    <button onclick="confirmDelete({{ test.id }}, '{{ test.title|escapejs }}')"
+                            class="px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg hover:from-red-600 hover:to-red-700 transition-all shadow-md hover:shadow-lg text-center font-semibold transform hover:scale-105">
+                        <i class="fas fa-trash mr-2"></i>
+                        Delete
+                    </button>
                 </div>
                 
                 <!-- Footer -->
@@ -173,4 +178,52 @@
 
     </div>
 </div>
+
+<script>
+// Get CSRF token from cookie
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+const csrftoken = getCookie('csrftoken');
+
+function confirmDelete(testId, testTitle) {
+    if (confirm(`⚠️ WARNING: Are you sure you want to delete "${testTitle}"?\n\nThis will permanently delete the test and all its questions!\n\nThis action cannot be undone.`)) {
+        fetch(`/superadmin/unit-tests/${testId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                alert('✅ Unit test deleted successfully!');
+                // Reload the page
+                location.reload();
+            } else {
+                alert('❌ Error: ' + (data.error || 'Failed to delete test'));
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('❌ Failed to delete test. Error: ' + error.message);
+        });
+    }
+}
+</script>
+
 {% endblock %}

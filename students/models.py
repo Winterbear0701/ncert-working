@@ -415,12 +415,17 @@ class UnitTestAnswer(models.Model):
     # Student's answer
     answer_text = models.TextField()
     
-    # AI Evaluation scores
-    content_score = models.FloatField(default=0, help_text="How well content matches model answer")
-    grammar_score = models.FloatField(default=0, help_text="Grammar and language quality")
-    marks_obtained = models.FloatField(default=0)
+    # AI Evaluation scores (NEW: separate content and grammar scores)
+    awarded_marks = models.FloatField(default=0, help_text="Total marks awarded for this answer")
+    content_score = models.FloatField(default=0, help_text="Content accuracy (0-1)")
+    grammar_score = models.FloatField(default=0, help_text="Grammar and language quality (0-1)")
+    marks_obtained = models.FloatField(default=0)  # Deprecated: use awarded_marks
     
-    # AI Feedback
+    # AI Feedback (NEW: combined AI feedback)
+    ai_feedback = models.TextField(null=True, blank=True, help_text="Detailed AI-generated feedback")
+    evaluation_type = models.CharField(max_length=20, default='ai', help_text="exact, ai, or heuristic")
+    
+    # Legacy feedback fields (kept for backward compatibility)
     content_feedback = models.TextField(null=True, blank=True)
     grammar_feedback = models.TextField(null=True, blank=True)
     overall_feedback = models.TextField(null=True, blank=True)
