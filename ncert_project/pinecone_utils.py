@@ -208,7 +208,7 @@ class PineconeDBManager:
         Args:
             query_text: The question/query text
             class_num: Filter by class (e.g., "5", "6", "Class 5")
-            subject: Filter by subject (e.g., "Mathematics")
+            subject: Filter by subject (e.g., "Mathematics") - NOTE: This is advisory only, not strict
             chapter: Filter by chapter (e.g., "1", "Chapter 1")
             n_results: Number of results to return
         
@@ -217,6 +217,10 @@ class PineconeDBManager:
         """
         try:
             # Build filter for Pinecone
+            # NOTE: We only filter by class and chapter, NOT subject
+            # Reason: Subject names in uploaded books may differ from user's terminology
+            # (e.g., "Our Wondrous World" vs "Arts", "Mathematics" vs "Maths")
+            # The semantic search via embeddings will find the right subject automatically
             filter_dict = {}
             
             if class_num:
@@ -224,8 +228,8 @@ class PineconeDBManager:
                     class_num = f"Class {class_num}"
                 filter_dict['class'] = {'$eq': class_num}
             
-            if subject:
-                filter_dict['subject'] = {'$eq': str(subject).title()}
+            # REMOVED strict subject filter - let embeddings handle semantic matching
+            # This allows finding content even if subject name doesn't match exactly
             
             if chapter:
                 if not str(chapter).lower().startswith('chapter'):
@@ -241,25 +245,58 @@ class PineconeDBManager:
             else:
                 pinecone_filter = None
             
-            logger.info(f"🔍 Querying Pinecone with filter: {pinecone_filter}")
+            # Log what we're searching for (include subject in log even if not filtering)
+            search_desc = f"class={class_num}" if class_num else "all classes"
+            if subject:
+                search_desc += f", looking for {subject} content (semantic)"
+            if chapter:
+                search_desc += f", chapter={chapter}"
+            
+            logger.info(f"🔍 Querying Pinecone ({search_desc})")
+            logger.info(f"   Filter: {pinecone_filter}")
             
             # Generate query embedding
             query_embedding = embedding_model.encode([query_text])[0].tolist()
             
-            # Query Pinecone
+            # Query Pinecone with higher top_k to get more results for filtering
+            # We'll filter by subject programmatically if needed
+            query_top_k = n_results * 3 if subject else n_results
+            
             results = self.index.query(
                 vector=query_embedding,
-                top_k=n_results,
+                top_k=query_top_k,
                 filter=pinecone_filter,
                 include_metadata=True
             )
             
-            # Convert to ChromaDB-compatible format
-            documents = [[match['metadata'].get('text', '') for match in results['matches']]]
-            metadatas = [[match['metadata'] for match in results['matches']]]
-            distances = [[match.get('score', 0.0) for match in results['matches']]]
+            # If subject was specified, do post-filtering by checking if subject name contains
+            # the search term (case-insensitive partial match)
+            matches = results['matches']
             
-            logger.info(f"🔍 Query returned {len(results['matches'])} results")
+            if subject and matches:
+                subject_lower = subject.lower()
+                # Try to filter by subject, but if we get no results, return all
+                filtered_matches = [
+                    match for match in matches
+                    if subject_lower in match['metadata'].get('subject', '').lower()
+                ]
+                
+                if filtered_matches:
+                    matches = filtered_matches
+                    logger.info(f"✓ Filtered to {len(matches)} results matching subject '{subject}'")
+                else:
+                    logger.info(f"⚠️  No exact subject match for '{subject}', returning all results from class")
+                    matches = matches[:n_results]  # Return top results anyway
+            
+            # Limit to requested number of results
+            matches = matches[:n_results]
+            
+            # Convert to ChromaDB-compatible format
+            documents = [[match['metadata'].get('text', '') for match in matches]]
+            metadatas = [[match['metadata'] for match in matches]]
+            distances = [[match.get('score', 0.0) for match in matches]]
+            
+            logger.info(f"🔍 Query returned {len(matches)} results")
             
             return {
                 'documents': documents,

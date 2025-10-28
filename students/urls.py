@@ -8,6 +8,7 @@ urlpatterns = [
     path("dashboard/", views.student_dashboard, name="student_dashboard"),
     path("chatbot/", views.chatbot_page, name="chatbot_page"),
     path("ask_chatbot/", views.ask_chatbot, name="ask_chatbot"),
+    path("report-wrong-answer/", views.report_wrong_answer, name="report_wrong_answer"),  # NEW: Feedback endpoint
     
     # Smart Analysis
     path("smart-analysis/", views.smart_test_analysis, name="smart_test_analysis"),

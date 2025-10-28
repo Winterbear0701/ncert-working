@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 from datetime import timedelta
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -572,18 +573,49 @@ def ask_chatbot(request):
             except Exception as e:
                 logger.error(f"Image generation error: {e}")
         
-        # Cache the answer (10-day cache)
+        # Cache the answer with quality control (adaptive expiry based on quality)
         if is_educational_query(question):
             try:
+                # Calculate quality score based on RAG relevance
+                quality_score = 1.0  # Default high quality
+                avg_relevance = 0.0
+                
+                if rag_context and results and results.get("distances"):
+                    # Calculate average relevance from RAG results
+                    distances = results["distances"][0] if results["distances"] else []
+                    if distances:
+                        relevances = [1 - d for d in distances]  # Convert distance to similarity
+                        avg_relevance = sum(relevances) / len(relevances)
+                        
+                        # Quality score based on RAG relevance
+                        if avg_relevance >= 0.7:
+                            quality_score = 1.0  # Excellent
+                        elif avg_relevance >= 0.5:
+                            quality_score = 0.8  # Good
+                        elif avg_relevance >= 0.3:
+                            quality_score = 0.6  # Fair
+                        else:
+                            quality_score = 0.4  # Low quality
+                else:
+                    # No RAG context = lower quality (AI-only answer)
+                    quality_score = 0.5
+                    avg_relevance = 0.0
+                
                 ChatCache.objects.create(
                     question_hash=get_query_hash(question),
                     question=question,
                     answer=answer,
                     images=images if images else None,
                     sources=sources if sources else None,
-                    difficulty_level=difficulty_level
+                    difficulty_level=difficulty_level,
+                    quality_score=quality_score,
+                    has_rag_context=bool(rag_context),
+                    rag_relevance=avg_relevance
                 )
-                logger.info("✅ Answer cached for future use")
+                
+                # Log cache duration based on quality
+                cache_days = 10 if quality_score >= 0.7 else (3 if quality_score >= 0.5 else 1)
+                logger.info(f"✅ Answer cached for {cache_days} days (quality: {quality_score:.2f}, RAG: {avg_relevance:.2f})")
             except Exception as e:
                 logger.error(f"Failed to cache answer: {e}")
 
@@ -673,6 +705,72 @@ def chatbot_page(request):
     Main chatbot interface page
     """
     return render(request, 'students/chatbot.html', {'user': request.user})
+
+
+@login_required
+def report_wrong_answer(request):
+    """
+    Report a wrong/bad chatbot answer - invalidates cache
+    Allows students to flag incorrect answers to prevent caching
+    """
+    if request.method != 'POST':
+        return JsonResponse({"status": "error", "error": "POST required"}, status=405)
+    
+    try:
+        data = json.loads(request.body)
+        question = data.get('question', '').strip()
+        reason = data.get('reason', 'Wrong answer')  # Optional: why it's wrong
+        
+        if not question:
+            return JsonResponse({
+                "status": "error",
+                "error": "Question is required"
+            }, status=400)
+        
+        # Get the cache entry for this question
+        query_hash = get_query_hash(question)
+        cache_entry = ChatCache.objects.filter(question_hash=query_hash).first()
+        
+        if cache_entry:
+            # Report negative feedback and potentially invalidate
+            cache_entry.report_negative_feedback()
+            
+            logger.warning(f"⚠️  Wrong answer reported by user {request.user.id}: {question[:50]}... "
+                         f"(Feedback count: {cache_entry.negative_feedback_count}, Reason: {reason})")
+            
+            # Return status
+            if cache_entry.is_invalidated:
+                return JsonResponse({
+                    "status": "success",
+                    "message": "✅ Thanks for reporting! This answer has been removed from cache and won't be shown again.",
+                    "invalidated": True
+                })
+            else:
+                return JsonResponse({
+                    "status": "success",
+                    "message": "✅ Thanks for the feedback! We're tracking this answer's quality.",
+                    "invalidated": False,
+                    "feedback_count": cache_entry.negative_feedback_count
+                })
+        else:
+            # No cache entry found (might already be cleared or never cached)
+            return JsonResponse({
+                "status": "success",
+                "message": "✅ Thanks for reporting! This question will be re-evaluated next time.",
+                "cache_found": False
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({
+            "status": "error",
+            "error": "Invalid JSON"
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error reporting wrong answer: {e}")
+        return JsonResponse({
+            "status": "error",
+            "error": "Failed to report feedback"
+        }, status=500)
 
 
 def clean_old_chats():
@@ -844,11 +942,13 @@ def unit_test_save_draft(request, attempt_id):
 def unit_test_submit(request, attempt_id):
     """
     Submit unit test for evaluation
+    Supports optional AI model selection (Gemini or OpenAI)
     """
     from .models import UnitTestAttempt, UnitTestAnswer
     from .unit_test_evaluator import evaluator
     from django.shortcuts import get_object_or_404, redirect
     import json
+    import os
     
     attempt = get_object_or_404(UnitTestAttempt, id=attempt_id, student=request.user, status='in_progress')
     
@@ -872,13 +972,16 @@ def unit_test_submit(request, attempt_id):
     attempt.time_taken_seconds = int((timezone.now() - attempt.started_at).total_seconds())
     attempt.save()
     
-    # Evaluate the test asynchronously (or synchronously for now)
+    # Get AI model preference (from POST, settings, or default to gemini)
+    ai_model = request.POST.get('ai_model', os.environ.get('DEFAULT_EVAL_AI', 'gemini'))
+    
+    # Evaluate the test with selected AI model
     try:
-        evaluation_result = evaluator.evaluate_full_test(attempt.id)
-        logger.info(f"Unit test {attempt.id} evaluated: {evaluation_result}")
+        evaluation_result = evaluator.evaluate_full_test(attempt.id, ai_model=ai_model)
+        logger.info(f"Unit test {attempt.id} evaluated with {ai_model.upper()}: {evaluation_result}")
     except Exception as e:
         logger.error(f"Error evaluating unit test {attempt.id}: {str(e)}")
-        attempt.overall_feedback = "Evaluation in progress. Please check back in a few moments."
+        attempt.overall_feedback = "⏳ Evaluation in progress. Please check back in a few moments."
         attempt.save()
     
     return redirect('students:unit_test_results', attempt_id=attempt.id)

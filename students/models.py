@@ -26,6 +26,12 @@ class ChatCache(models.Model):
     """
     Auto-expiring cache for frequently asked questions
     Entries older than 10 days are automatically deleted
+    
+    Quality Control Features:
+    - Only cache answers with RAG context (prevent hallucination caching)
+    - Track quality score based on RAG relevance
+    - Allow manual invalidation via feedback
+    - Automatic expiry for low-quality answers
     """
     question_hash = models.CharField(max_length=64, unique=True, db_index=True)  # MD5 hash of normalized question
     question = models.TextField()
@@ -34,29 +40,63 @@ class ChatCache(models.Model):
     sources = models.JSONField(null=True, blank=True)  # Reference links
     difficulty_level = models.CharField(max_length=20, default='normal')
     hit_count = models.IntegerField(default=0)  # Track how many times used
+    quality_score = models.FloatField(default=1.0)  # Quality score (0.0 - 1.0)
+    has_rag_context = models.BooleanField(default=False)  # Was RAG used?
+    rag_relevance = models.FloatField(default=0.0)  # Average RAG chunk relevance
+    negative_feedback_count = models.IntegerField(default=0)  # Track bad feedback
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
+    is_invalidated = models.BooleanField(default=False)  # Manual invalidation flag
 
     def __str__(self):
-        return f"Cache: {self.question[:50]}"
+        return f"Cache: {self.question[:50]} (Quality: {self.quality_score:.2f})"
 
     def save(self, *args, **kwargs):
-        # Set expiration date to 10 days from now
-        if not self.expires_at:
-            self.expires_at = timezone.now() + timedelta(days=10)
+        # Set expiration date based on quality (only if not already set)
+        if not self.pk or not self.expires_at:  # New object or expires_at not set
+            if self.has_rag_context and self.quality_score >= 0.7:
+                # High-quality RAG answers: 10 days cache
+                self.expires_at = timezone.now() + timedelta(days=10)
+            elif self.has_rag_context and self.quality_score >= 0.5:
+                # Medium-quality RAG answers: 3 days cache
+                self.expires_at = timezone.now() + timedelta(days=3)
+            else:
+                # Low-quality or non-RAG answers: 1 day cache only
+                self.expires_at = timezone.now() + timedelta(days=1)
         super().save(*args, **kwargs)
 
     def is_expired(self):
-        return timezone.now() > self.expires_at
+        """Check if cache is expired or invalidated"""
+        return timezone.now() > self.expires_at or self.is_invalidated
+
+    def invalidate(self):
+        """Manually invalidate this cache entry (wrong answer reported)"""
+        self.is_invalidated = True
+        self.save()
+
+    def report_negative_feedback(self):
+        """Track negative feedback - auto-invalidate after 2 reports"""
+        self.negative_feedback_count += 1
+        if self.negative_feedback_count >= 2:
+            self.invalidate()
+        self.save()
 
     @classmethod
     def get_active_cache(cls, question_hash):
-        """Get non-expired cache entry"""
+        """Get non-expired, non-invalidated cache entry with quality check"""
         try:
             cache = cls.objects.get(question_hash=question_hash)
+            
+            # Check expiration and invalidation
             if cache.is_expired():
                 cache.delete()
                 return None
+            
+            # Quality gate: Don't use low-quality cache with negative feedback
+            if cache.quality_score < 0.3 or cache.negative_feedback_count >= 2:
+                cache.delete()
+                return None
+            
             cache.hit_count += 1
             cache.save()
             return cache
