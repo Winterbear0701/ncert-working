@@ -18,17 +18,44 @@ logger = logging.getLogger('students')
 
 def extract_let_us_reflect_questions(content: str) -> List[Dict]:
     """
-    Extract 'Let us reflect' questions from textbook content
+    Extract questions from textbook special sections
+    - Let us reflect
+    - Activity sections
+    - Do you know
+    - Discuss / Let's discuss
+    - End-of-chapter questions
     These are high-quality questions already in the book
     """
     questions = []
     
-    # Pattern to find "Let us reflect" or similar sections
+    # Comprehensive patterns for all NCERT question sections (Class 5-10)
     patterns = [
+        # Primary reflection sections
         r'Let us reflect[:\s]*(.*?)(?=\n\n|\Z)',
+        r'Let Us Reflect[:\s]*(.*?)(?=\n\n|\Z)',
+        
+        # Activity sections
+        r'Activity[:\s]*(.*?)(?=\n\n|\Z)',
+        r'ACTIVITY[:\s]*(.*?)(?=\n\n|\Z)',
+        
+        # Discussion prompts
+        r'Do you know[:\s\?]*(.*?)(?=\n\n|\Z)',
+        r'Do You Know[:\s\?]*(.*?)(?=\n\n|\Z)',
+        r'Discuss[:\s]*(.*?)(?=\n\n|\Z)',
+        r'Let\'s discuss[:\s]*(.*?)(?=\n\n|\Z)',
+        r'Let us discuss[:\s]*(.*?)(?=\n\n|\Z)',
+        
+        # Standard question sections
         r'Think and Answer[:\s]*(.*?)(?=\n\n|\Z)',
         r'Check your progress[:\s]*(.*?)(?=\n\n|\Z)',
         r'Questions[:\s]*(.*?)(?=\n\n|\Z)',
+        r'Exercise[:\s]*(.*?)(?=\n\n|\Z)',
+        r'EXERCISE[:\s]*(.*?)(?=\n\n|\Z)',
+        
+        # End-of-chapter sections
+        r'Review Questions[:\s]*(.*?)(?=\n\n|\Z)',
+        r'Chapter Review[:\s]*(.*?)(?=\n\n|\Z)',
+        r'Summary Questions[:\s]*(.*?)(?=\n\n|\Z)',
     ]
     
     for pattern in patterns:
@@ -78,10 +105,10 @@ def generate_mcqs_from_textbook_questions(textbook_questions: List[Dict], conten
         
         prompt = f"""You are converting textbook reflection questions into MCQs for Class {class_num} students.
 
-TEXTBOOK QUESTIONS:
+TEXTBOOK QUESTIONS (from "Let us reflect", "Activity", "Discuss", "Do you know" sections):
 {questions_text}
 
-CHAPTER CONTENT (for context):
+CHAPTER CONTENT (includes OCR-extracted text from diagrams, maps, charts):
 {content[:3000]}
 
 TASK: Convert EACH question into a 4-option MCQ with EXACTLY 5 variants.
@@ -95,10 +122,16 @@ CRITICAL REQUIREMENTS:
 6. Extract relevant RAG context from the content
 7. Mix difficulty: label as easy/medium/hard based on original question complexity
 8. EXPLANATIONS: Keep SHORT (2-3 sentences max), simple, plain text - NO markdown (no *, #, **, _)
+9. **IMPORTANT**: Consider image content (diagrams, maps, charts) extracted via OCR - create visual/diagram-based questions too
+
+IMAGE-BASED QUESTION TYPES (if content has diagrams):
+- "Based on the diagram, what is a dune?"
+- "According to the rivers map, which landform is formed by wind?"
+- "Looking at the water cycle chart, where does evaporation occur?"
 
 EXPLANATION RULES:
-✅ GOOD: "The answer is B because rivers flow from mountains to the sea. Water always moves downward due to gravity."
-❌ BAD: "**Rivers flow from mountains to the sea.** This is because of *gravity* which pulls water downward. Rivers start high up..."
+[OK] GOOD: "The answer is B because rivers flow from mountains to the sea. Water always moves downward due to gravity."
+[ERROR] BAD: "**Rivers flow from mountains to the sea.** This is because of *gravity* which pulls water downward. Rivers start high up..."
 
 OUTPUT FORMAT (JSON) - MUST return array with exactly 10 questions:
 [
@@ -150,7 +183,7 @@ OUTPUT FORMAT (JSON) - MUST return array with exactly 10 questions:
 
 IMPORTANT: You MUST return exactly 10 questions. If textbook has less than 10 "Let us reflect" questions, create additional questions from the chapter content to reach exactly 10 questions.
 
-⚠️  CRITICAL JSON FORMATTING:
+[WARNING]  CRITICAL JSON FORMATTING:
 1. Use ONLY double quotes (") - NO single quotes (')
 2. NO trailing commas before closing brackets
 3. Escape special characters in text (use \\" for quotes inside strings)
@@ -177,18 +210,18 @@ Return ONLY the JSON array - no markdown, no extra text."""
                         }
                     )
                     result_text = response.text
-                    logger.info(f"✅ Gemini converted textbook questions to MCQs (attempt {attempt + 1})")
+                    logger.info(f"[OK] Gemini converted textbook questions to MCQs (attempt {attempt + 1})")
                     break  # Success, exit retry loop
                 except Exception as e:
-                    logger.warning(f"⚠️  Gemini attempt {attempt + 1} failed: {e}")
+                    logger.warning(f"[WARNING]  Gemini attempt {attempt + 1} failed: {e}")
                     if attempt == max_retries - 1:
-                        logger.error(f"❌ All Gemini attempts failed")
+                        logger.error(f"[ERROR] All Gemini attempts failed")
                         return []
                     import time
                     time.sleep(1)  # Brief pause before retry
         
         if not result_text:
-            logger.error("❌ No AI service available")
+            logger.error("[ERROR] No AI service available")
             return []
         
         # Parse JSON
@@ -205,9 +238,9 @@ Return ONLY the JSON array - no markdown, no extra text."""
         questions = None
         try:
             questions = json.loads(result_text)
-            logger.info(f"✅ Generated {len(questions)} MCQs from textbook questions")
+            logger.info(f"[OK] Generated {len(questions)} MCQs from textbook questions")
         except json.JSONDecodeError as e:
-            logger.warning(f"⚠️  JSON parse error at line {e.lineno}: {e.msg}")
+            logger.warning(f"[WARNING]  JSON parse error at line {e.lineno}: {e.msg}")
             logger.warning(f"   Error position: char {e.pos}")
             # Log the problematic section (100 chars around error)
             error_start = max(0, e.pos - 50)
@@ -234,9 +267,9 @@ Return ONLY the JSON array - no markdown, no extra text."""
             # Try parsing fixed JSON
             try:
                 questions = json.loads(fixed_text)
-                logger.info(f"✅ Fixed and parsed JSON: {len(questions)} questions")
+                logger.info(f"[OK] Fixed and parsed JSON: {len(questions)} questions")
             except json.JSONDecodeError as e2:
-                logger.error(f"❌ Could not fix JSON. Error: {e2}")
+                logger.error(f"[ERROR] Could not fix JSON. Error: {e2}")
                 
                 # Last resort: Extract valid JSON portion
                 try:
@@ -250,9 +283,9 @@ Return ONLY the JSON array - no markdown, no extra text."""
                         if open_braces > 0:
                             truncated = truncated.rstrip(',') + '}' * open_braces
                         questions = json.loads(truncated)
-                        logger.info(f"✅ Extracted partial JSON: {len(questions)} questions")
+                        logger.info(f"[OK] Extracted partial JSON: {len(questions)} questions")
                 except:
-                    logger.error(f"❌ All JSON repair attempts failed")
+                    logger.error(f"[ERROR] All JSON repair attempts failed")
                     return []
         
         if not questions:
@@ -261,7 +294,7 @@ Return ONLY the JSON array - no markdown, no extra text."""
         return questions
         
     except Exception as e:
-        logger.error(f"❌ Error converting textbook questions: {e}")
+        logger.error(f"[ERROR] Error converting textbook questions: {e}")
         return []
 
 
@@ -278,7 +311,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         # Get Vector DB manager (Pinecone in production, ChromaDB local)
         vector_manager = get_vector_db_manager()
         db_type = "Pinecone" if hasattr(vector_manager, 'index_name') else "ChromaDB"
-        logger.info(f"🔍 Fetching content from {db_type} for: {chapter_name} (Class {class_num}, {subject})")
+        logger.info(f"[SEARCH] Fetching content from {db_type} for: {chapter_name} (Class {class_num}, {subject})")
         logger.info(f"   Parameters: class_num={class_num}, subject={subject}, chapter={chapter_name}")
         
         # Build specific query for this chapter - CRITICAL: Filter by chapter!
@@ -296,7 +329,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         logger.info(f"   Query returned: {len(results.get('documents', [[]])[0])} chunks")
         
         if not results or not results.get("documents") or not results["documents"][0]:
-            logger.error(f"❌ No content in {db_type} for {chapter_id}")
+            logger.error(f"[ERROR] No content in {db_type} for {chapter_id}")
             logger.error(f"   Tried to find: Class {class_num}, Subject: {subject}, Chapter: {chapter_name}")
             return {"status": "error", "success": False, "error": f"No content in {db_type}"}
         
@@ -306,15 +339,15 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         
         # Verify we got the right chapter content
         if metadatas:
-            logger.info(f"📚 Retrieved from {db_type}: {metadatas[0].get('class')} - {metadatas[0].get('subject')} - {metadatas[0].get('chapter')}")
+            logger.info(f"[BOOK] Retrieved from {db_type}: {metadatas[0].get('class')} - {metadatas[0].get('subject')} - {metadatas[0].get('chapter')}")
         
         full_content = "\n\n".join(documents)
         
-        logger.info(f"📄 Retrieved {len(documents)} chunks from {chapter_name}, total {len(full_content)} chars")
+        logger.info(f"[DOC] Retrieved {len(documents)} chunks from {chapter_name}, total {len(full_content)} chars")
         
         # STEP 1: Extract "Let us reflect" questions
         textbook_questions = extract_let_us_reflect_questions(full_content)
-        logger.info(f"📝 Found {len(textbook_questions)} textbook reflection questions")
+        logger.info(f"[NOTE] Found {len(textbook_questions)} textbook reflection questions")
         
         # STEP 2: Convert to MCQs
         mcq_data = []
@@ -323,21 +356,21 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         
         # If textbook MCQ generation failed or no textbook questions, use fallback
         if not mcq_data:
-            logger.warning("⚠️ No MCQs from textbook questions, generating from content")
+            logger.warning("[WARNING] No MCQs from textbook questions, generating from content")
             # Fallback to regular AI generation
             try:
                 from students.quiz_generator import generate_mcq_questions_with_ai
                 mcq_data = generate_mcq_questions_with_ai(full_content, chapter_name, class_num)
             except Exception as fallback_err:
-                logger.error(f"❌ Fallback generation failed: {fallback_err}")
+                logger.error(f"[ERROR] Fallback generation failed: {fallback_err}")
         
         if not mcq_data:
-            logger.error("❌ Failed to generate MCQs from all methods")
+            logger.error("[ERROR] Failed to generate MCQs from all methods")
             return {"success": False, "error": "Failed to generate questions after all attempts"}
         
         # CRITICAL: Ensure EXACTLY 10 questions
         if len(mcq_data) < 10:
-            logger.warning(f"⚠️ Only {len(mcq_data)} questions generated, need exactly 10")
+            logger.warning(f"[WARNING] Only {len(mcq_data)} questions generated, need exactly 10")
             # Generate additional questions to reach 10
             from students.quiz_generator import generate_mcq_questions_with_ai
             additional_needed = 10 - len(mcq_data)
@@ -351,7 +384,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
             mcq_data = mcq_data[:10]
             logger.info(f"✂️ Trimmed to exactly 10 questions")
         
-        logger.info(f"📊 Final question count: {len(mcq_data)} questions")
+        logger.info(f"[STATS] Final question count: {len(mcq_data)} questions")
         
         # STEP 3: Create/update database records
         quiz_chapter, created = QuizChapter.objects.get_or_create(
@@ -398,7 +431,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
                     explanation=variant_data['explanation']
                 )
         
-        logger.info(f"✅ Created quiz: {len(mcq_data)} questions × 3 variants = {len(mcq_data)*3} total variants")
+        logger.info(f"[OK] Created quiz: {len(mcq_data)} questions × 3 variants = {len(mcq_data)*3} total variants")
         
         return {
             "status": "success",
@@ -410,7 +443,7 @@ def generate_quiz_with_textbook_questions(chapter_id: str, class_num: str, subje
         }
         
     except Exception as e:
-        logger.error(f"❌ Quiz generation failed: {e}")
+        logger.error(f"[ERROR] Quiz generation failed: {e}")
         import traceback
         traceback.print_exc()
         return {"status": "error", "success": False, "error": str(e), "message": str(e)}

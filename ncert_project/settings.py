@@ -248,3 +248,15 @@ if not DEBUG:
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
+
+# ========================================
+# OCR Configuration (Tesseract)
+# ========================================
+import pytesseract
+
+# Set Tesseract path for Windows
+TESSERACT_CMD = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
+
+# Poppler path for pdf2image (if needed)
+POPPLER_PATH = r'C:\Program Files\poppler\Library\bin'  # Update if different

@@ -191,9 +191,9 @@ def delete_upload(request, upload_id):
                     ]
                 }
             )
-            logger.info(f"🗑️  Deleted ChromaDB chunks for {chapter_info}")
+            logger.info(f"[DELETE]  Deleted ChromaDB chunks for {chapter_info}")
         except Exception as e:
-            logger.warning(f"⚠️  Could not delete ChromaDB data: {e}")
+            logger.warning(f"[WARNING]  Could not delete ChromaDB data: {e}")
         
         # 2. Delete related quiz data
         try:
@@ -216,26 +216,26 @@ def delete_upload(request, upload_id):
                 # Delete chapter
                 chapter.delete()
                 
-            logger.info(f"🗑️  Deleted {chapters.count()} quiz chapters and related data")
+            logger.info(f"[DELETE]  Deleted {chapters.count()} quiz chapters and related data")
         except Exception as e:
-            logger.warning(f"⚠️  Could not delete quiz data: {e}")
+            logger.warning(f"[WARNING]  Could not delete quiz data: {e}")
         
         # 3. Delete physical PDF file
         try:
             if upload.file and os.path.exists(upload.file.path):
                 os.remove(upload.file.path)
-                logger.info(f"🗑️  Deleted PDF file: {upload.file.path}")
+                logger.info(f"[DELETE]  Deleted PDF file: {upload.file.path}")
         except Exception as e:
-            logger.warning(f"⚠️  Could not delete PDF file: {e}")
+            logger.warning(f"[WARNING]  Could not delete PDF file: {e}")
         
         # 4. Delete upload record from database
         upload.delete()
         
-        messages.success(request, f'✅ Successfully deleted "{filename}" and all related data (PDF, quizzes, ChromaDB chunks)')
-        logger.info(f"✅ Successfully deleted upload: {filename} ({chapter_info})")
+        messages.success(request, f'[OK] Successfully deleted "{filename}" and all related data (PDF, quizzes, ChromaDB chunks)')
+        logger.info(f"[OK] Successfully deleted upload: {filename} ({chapter_info})")
         
     except Exception as e:
-        logger.error(f"❌ Error deleting upload {upload_id}: {e}")
+        logger.error(f"[ERROR] Error deleting upload {upload_id}: {e}")
         messages.error(request, f'Error deleting upload: {str(e)}')
     
     return redirect('superadmin:upload_list')
@@ -316,7 +316,7 @@ def get_subjects_api(request):
         # Sort subjects
         subjects = sorted(subjects) if subjects else []
         
-        logger.info(f"📚 Found {len(subjects)} subjects for {class_normalized} from book_chapters")
+        logger.info(f"[BOOK] Found {len(subjects)} subjects for {class_normalized} from book_chapters")
         
         return JsonResponse({'subjects': subjects})
     

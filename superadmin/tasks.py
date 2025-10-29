@@ -16,6 +16,7 @@ import openai
 import pytesseract
 from PIL import Image
 import io
+from pdf2image import convert_from_path
 
 # Import unified vector database manager (Pinecone/ChromaDB)
 from ncert_project.vector_db_utils import get_vector_db_manager
@@ -34,10 +35,64 @@ def is_math_heavy_subject(subject):
     return any(subj in subject.lower() for subj in math_subjects)
 
 
+def extract_text_from_page_image_ocr(pdf_path, page_num):
+    """
+    ENHANCED OCR: Convert entire PDF page to high-res image and extract ALL visible text
+    This captures:
+    - Labels in diagrams (e.g., "Dune", "Valley", "River", "Mountain")
+    - Text in infographics and flowcharts
+    - Captions and annotations
+    - Any text embedded in images
+    
+    Args:
+        pdf_path: Path to PDF file
+        page_num: Page number (1-indexed)
+    
+    Returns:
+        Extracted text from the page image
+    """
+    try:
+        # Convert specific page to high-resolution image
+        # DPI=300 provides good quality for OCR while keeping file size reasonable
+        images = convert_from_path(
+            pdf_path, 
+            dpi=300,
+            first_page=page_num,
+            last_page=page_num
+        )
+        
+        if not images:
+            return ""
+        
+        page_image = images[0]
+        
+        # Apply Tesseract OCR with optimized settings
+        # config options:
+        # --psm 3: Fully automatic page segmentation (default)
+        # --oem 3: Default OCR Engine mode (LSTM neural network)
+        custom_config = r'--psm 3 --oem 3'
+        ocr_text = pytesseract.image_to_string(page_image, lang='eng', config=custom_config)
+        
+        if ocr_text.strip():
+            # Clean up OCR text
+            ocr_text = ocr_text.strip()
+            # Remove excessive blank lines
+            ocr_text = '\n'.join(line for line in ocr_text.split('\n') if line.strip())
+            
+            logger.info(f"   [IMAGE OCR] Extracted {len(ocr_text)} chars from page {page_num}")
+            logger.debug(f"   Preview: {ocr_text[:150]}...")
+            return ocr_text
+        
+    except Exception as e:
+        logger.debug(f"   OCR extraction error for page {page_num}: {str(e)}")
+    
+    return ""
+
+
 def extract_text_from_images_ocr(page):
     """
-    Extract text from images on a PDF page using OCR
-    This captures definitions and terms that appear in images/diagrams
+    LEGACY: Extract text from individual images on a PDF page using OCR
+    Kept for backward compatibility and additional image-specific extraction
     Returns: extracted image text
     """
     image_text = []
@@ -57,20 +112,27 @@ def extract_text_from_images_ocr(page):
                     ocr_text = pytesseract.image_to_string(pil_img, lang='eng')
                     if ocr_text.strip():
                         image_text.append(ocr_text.strip())
-                        logger.info(f"   📸 Extracted text from image: {ocr_text[:100]}...")
+                        logger.debug(f"   [LEGACY OCR] Extracted from embedded image: {ocr_text[:50]}...")
                 except Exception as img_error:
-                    logger.debug(f"   Could not OCR image: {str(img_error)}")
+                    logger.debug(f"   Could not OCR embedded image: {str(img_error)}")
                     continue
     except Exception as e:
-        logger.debug(f"   OCR extraction error: {str(e)}")
+        logger.debug(f"   Legacy OCR extraction error: {str(e)}")
     
-    return "\n\n[IMAGE TEXT]\n" + "\n".join(image_text) + "\n[/IMAGE TEXT]\n" if image_text else ""
+    return "\n\n[EMBEDDED IMAGE TEXT]\n" + "\n".join(image_text) + "\n[/EMBEDDED IMAGE TEXT]\n" if image_text else ""
 
 
 def extract_text_from_pdf(pdf_path, subject=""):
     """
-    Extract text from PDF with enhanced handling for math/science content
-    AND extract text from images using OCR (for terms like 'dune', 'plateau' etc)
+    Extract text from PDF with ENHANCED OCR for images/diagrams
+    
+    THREE-LAYER EXTRACTION:
+    1. Regular text extraction from PDF (pdfplumber)
+    2. Full-page OCR (converts page to image, extracts ALL visible text including labels)
+    3. Embedded image OCR (extracts from individual images)
+    
+    This ensures terms like "Dune", "Valley", "River" etc in diagrams are captured!
+    
     Returns list of (page_num, text, has_equations) tuples
     """
     pages_data = []
@@ -79,13 +141,24 @@ def extract_text_from_pdf(pdf_path, subject=""):
     try:
         with pdfplumber.open(pdf_path) as pdf:
             total_pages = len(pdf.pages)
-            logger.info(f"Processing {total_pages} pages from PDF (Enhanced: {use_enhanced_extraction})")
+            logger.info(f"Processing {total_pages} pages from PDF (Enhanced OCR: {use_enhanced_extraction})")
             
             for i, page in enumerate(pdf.pages, start=1):
-                # Extract regular text
+                # Layer 1: Extract regular text from PDF
                 text = page.extract_text() or ""
+                regular_text_length = len(text)
                 
-                # Extract text from images (IMPORTANT: for definitions in diagrams)
+                # Layer 2: ENHANCED - Full page OCR (extracts text from entire page image)
+                # This captures labels in diagrams, infographics, annotated images
+                full_page_ocr = extract_text_from_page_image_ocr(pdf_path, i)
+                if full_page_ocr:
+                    # Only add if OCR found significant new content
+                    # (avoid duplicating text already extracted by pdfplumber)
+                    if len(full_page_ocr) > regular_text_length * 0.3:  # OCR adds 30%+ new content
+                        text += "\n\n[FULL PAGE OCR TEXT]\n" + full_page_ocr + "\n[/FULL PAGE OCR TEXT]\n"
+                        logger.info(f"   [OK] Page {i}: Added {len(full_page_ocr)} chars from full-page OCR")
+                
+                # Layer 3: Extract text from embedded images (legacy method, still useful)
                 image_text = extract_text_from_images_ocr(page)
                 if image_text:
                     text += "\n\n" + image_text
@@ -117,7 +190,7 @@ def extract_text_from_pdf(pdf_path, subject=""):
         logger.error(f"Error extracting PDF: {str(e)}")
         raise
     
-    logger.info(f"✅ Extracted {len(pages_data)} pages with content")
+    logger.info(f"[OK] Extracted {len(pages_data)} pages with content")
     return pages_data
 
 
@@ -173,7 +246,7 @@ def chunk_text_with_metadata(pages_data, book_obj):
                 "upload_id": str(book_obj.id)
             })
     
-    logger.info(f"✅ Created {len(chunks)} chunks from {len(pages_data)} pages "
+    logger.info(f"[OK] Created {len(chunks)} chunks from {len(pages_data)} pages "
                f"({total_equations} chunks with equations)")
     return chunks
 
@@ -194,7 +267,7 @@ def process_uploaded_book_sync(uploaded_book_id):
         
         # Extract text from PDF with subject-aware processing
         logger.info(f"Extracting text from: {book_obj.file.path}")
-        logger.info(f"📚 Class: {book_obj.standard}, Subject: {book_obj.subject}, Chapter: {book_obj.chapter}")
+        logger.info(f"[BOOK] Class: {book_obj.standard}, Subject: {book_obj.subject}, Chapter: {book_obj.chapter}")
         pages_data = extract_text_from_pdf(book_obj.file.path, subject=book_obj.subject)
         
         if not pages_data:
@@ -208,7 +281,7 @@ def process_uploaded_book_sync(uploaded_book_id):
         
         # Store in vector database (Pinecone/ChromaDB based on VECTOR_DB env)
         db_type = "Pinecone" if hasattr(vector_db_manager, 'index_name') else "ChromaDB"
-        logger.info(f"📝 Storing {len(chunks)} chunks in {db_type} with labels:")
+        logger.info(f"[NOTE] Storing {len(chunks)} chunks in {db_type} with labels:")
         logger.info(f"   Class: {book_obj.standard}")
         logger.info(f"   Subject: {book_obj.subject}")
         logger.info(f"   Chapter: {book_obj.chapter}")
@@ -224,7 +297,7 @@ def process_uploaded_book_sync(uploaded_book_id):
         
         # ==================== SAVE CHAPTER METADATA TO MONGODB ====================
         # Save chapter info to MongoDB for unit test chapter selection
-        logger.info(f"💾 Saving chapter metadata to MongoDB...")
+        logger.info(f"[SAVE] Saving chapter metadata to MongoDB...")
         try:
             from ncert_project.mongodb_utils import get_mongo_db
             db = get_mongo_db()
@@ -256,14 +329,14 @@ def process_uploaded_book_sync(uploaded_book_id):
                 upsert=True
             )
             
-            logger.info(f"✅ Chapter metadata saved: {class_number_normalized} - {book_obj.subject} - {book_obj.chapter}")
+            logger.info(f"[OK] Chapter metadata saved: {class_number_normalized} - {book_obj.subject} - {book_obj.chapter}")
             
         except Exception as e:
-            logger.error(f"❌ Failed to save chapter metadata to MongoDB: {e}")
+            logger.error(f"[ERROR] Failed to save chapter metadata to MongoDB: {e}")
             # Don't fail the entire upload if metadata save fails
         
         # ==================== AUTO-GENERATE MCQs ====================
-        logger.info(f"🎯 Auto-generating MCQs for uploaded chapter...")
+        logger.info(f"[TARGET] Auto-generating MCQs for uploaded chapter...")
         
         # IMPORTANT: Pinecone has indexing latency - wait and verify vectors are queryable
         if hasattr(vector_db_manager, 'index_name'):
@@ -291,15 +364,15 @@ def process_uploaded_book_sync(uploaded_book_id):
                     )
                     if test_results and test_results.get('documents') and len(test_results['documents'][0]) > 0:
                         vectors_ready = True
-                        logger.info(f"✅ Pinecone indexing complete after {elapsed_time}s - {len(test_results['documents'][0])} vectors ready")
+                        logger.info(f"[OK] Pinecone indexing complete after {elapsed_time}s - {len(test_results['documents'][0])} vectors ready")
                         break
                     else:
                         logger.info(f"⏳ Indexing in progress... ({elapsed_time}s elapsed)")
                 except Exception as e:
-                    logger.warning(f"⚠️  Test query failed: {e}")
+                    logger.warning(f"[WARNING]  Test query failed: {e}")
             
             if not vectors_ready:
-                logger.warning(f"⚠️  Pinecone indexing may not be complete after {elapsed_time}s - proceeding anyway")
+                logger.warning(f"[WARNING]  Pinecone indexing may not be complete after {elapsed_time}s - proceeding anyway")
         
         try:
             from students.improved_quiz_generator import generate_quiz_with_textbook_questions
@@ -319,7 +392,7 @@ def process_uploaded_book_sync(uploaded_book_id):
             ).count()
             chapter_order = existing_chapters + 1
             
-            logger.info(f"📊 Chapter order calculation: {existing_chapters} existing chapters for {class_number_normalized}/{book_obj.subject}, new chapter_order={chapter_order}")
+            logger.info(f"[STATS] Chapter order calculation: {existing_chapters} existing chapters for {class_number_normalized}/{book_obj.subject}, new chapter_order={chapter_order}")
             
             # Generate quiz
             quiz_result = generate_quiz_with_textbook_questions(
@@ -331,34 +404,34 @@ def process_uploaded_book_sync(uploaded_book_id):
             )
             
             if quiz_result.get('status') == 'success':
-                logger.info(f"✅ Successfully auto-generated {quiz_result.get('questions_generated', 0)} MCQs!")
+                logger.info(f"[OK] Successfully auto-generated {quiz_result.get('questions_generated', 0)} MCQs!")
                 book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Auto-generated {quiz_result.get('questions_generated', 0)} MCQs."
             else:
-                logger.warning(f"⚠️ Quiz generation completed with warnings: {quiz_result.get('message', 'Unknown')}")
+                logger.warning(f"[WARNING] Quiz generation completed with warnings: {quiz_result.get('message', 'Unknown')}")
                 book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Quiz generation: {quiz_result.get('message', 'Partial success')}"
                 
         except Exception as quiz_error:
-            logger.error(f"❌ Error generating MCQs (upload still successful): {str(quiz_error)}")
+            logger.error(f"[ERROR] Error generating MCQs (upload still successful): {str(quiz_error)}")
             book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Note: MCQ auto-generation failed - run 'python manage.py generate_quizzes' manually."
         
         # Mark as complete
         book_obj.status = 'done'
         book_obj.save()
         
-        logger.info(f"✅ Successfully processed upload {uploaded_book_id}: {total_added} chunks")
+        logger.info(f"[OK] Successfully processed upload {uploaded_book_id}: {total_added} chunks")
         
         # Log vector database stats
         try:
             if hasattr(vector_db_manager, 'get_stats'):
                 stats = vector_db_manager.get_stats()
-                logger.info(f"📊 Vector DB Stats: {stats.get('total_documents', 0)} total documents, "
+                logger.info(f"[STATS] Vector DB Stats: {stats.get('total_documents', 0)} total documents, "
                            f"{stats.get('total_classes', 0)} classes")
             else:
                 # Pinecone stats
                 index_stats = vector_db_manager.index.describe_index_stats()
-                logger.info(f"📊 Pinecone Stats: {index_stats.get('total_vector_count', 0)} total vectors")
+                logger.info(f"[STATS] Pinecone Stats: {index_stats.get('total_vector_count', 0)} total vectors")
         except Exception as e:
-            logger.warning(f"⚠️  Could not get vector DB stats: {e}")
+            logger.warning(f"[WARNING]  Could not get vector DB stats: {e}")
         
         return {
             "status": "success",
@@ -401,7 +474,7 @@ def process_uploaded_book(self, uploaded_book_id):
         
         # Extract text from PDF with subject-aware processing
         logger.info(f"Extracting text from: {book_obj.file.path}")
-        logger.info(f"📚 Class: {book_obj.standard}, Subject: {book_obj.subject}, Chapter: {book_obj.chapter}")
+        logger.info(f"[BOOK] Class: {book_obj.standard}, Subject: {book_obj.subject}, Chapter: {book_obj.chapter}")
         pages_data = extract_text_from_pdf(book_obj.file.path, subject=book_obj.subject)
         
         if not pages_data:
@@ -415,7 +488,7 @@ def process_uploaded_book(self, uploaded_book_id):
         
         # Store in vector database (Pinecone/ChromaDB based on VECTOR_DB env)
         db_type = "Pinecone" if hasattr(vector_db_manager, 'index_name') else "ChromaDB"
-        logger.info(f"📝 Storing {len(chunks)} chunks in {db_type} with labels:")
+        logger.info(f"[NOTE] Storing {len(chunks)} chunks in {db_type} with labels:")
         logger.info(f"   Class: {book_obj.standard}")
         logger.info(f"   Subject: {book_obj.subject}")
         logger.info(f"   Chapter: {book_obj.chapter}")
@@ -443,7 +516,7 @@ def process_uploaded_book(self, uploaded_book_id):
         
         # ==================== SAVE CHAPTER METADATA TO MONGODB ====================
         # Save chapter info to MongoDB for unit test chapter selection
-        logger.info(f"💾 Saving chapter metadata to MongoDB...")
+        logger.info(f"[SAVE] Saving chapter metadata to MongoDB...")
         try:
             from ncert_project.mongodb_utils import get_mongo_db
             db = get_mongo_db()
@@ -475,10 +548,10 @@ def process_uploaded_book(self, uploaded_book_id):
                 upsert=True
             )
             
-            logger.info(f"✅ Chapter metadata saved: {class_number_normalized} - {book_obj.subject} - {book_obj.chapter}")
+            logger.info(f"[OK] Chapter metadata saved: {class_number_normalized} - {book_obj.subject} - {book_obj.chapter}")
             
         except Exception as e:
-            logger.error(f"❌ Failed to save chapter metadata to MongoDB: {e}")
+            logger.error(f"[ERROR] Failed to save chapter metadata to MongoDB: {e}")
             # Don't fail the entire upload if metadata save fails
         
         # Update progress
@@ -513,7 +586,7 @@ def process_uploaded_book(self, uploaded_book_id):
                     )
                     if test_results and test_results.get('documents') and len(test_results['documents'][0]) > 0:
                         vectors_ready = True
-                        logger.info(f"✅ Pinecone indexing complete after {elapsed_time}s - {len(test_results['documents'][0])} vectors ready")
+                        logger.info(f"[OK] Pinecone indexing complete after {elapsed_time}s - {len(test_results['documents'][0])} vectors ready")
                         break
                     else:
                         logger.info(f"⏳ Indexing in progress... ({elapsed_time}s elapsed)")
@@ -523,10 +596,10 @@ def process_uploaded_book(self, uploaded_book_id):
                             meta={'current': total_added, 'total': len(chunks), 'percent': 80 + (elapsed_time * 5 // max_wait_time), 'status': f'Waiting for indexing ({elapsed_time}s)'}
                         )
                 except Exception as e:
-                    logger.warning(f"⚠️  Test query failed: {e}")
+                    logger.warning(f"[WARNING]  Test query failed: {e}")
             
             if not vectors_ready:
-                logger.warning(f"⚠️  Pinecone indexing may not be complete after {elapsed_time}s - proceeding anyway")
+                logger.warning(f"[WARNING]  Pinecone indexing may not be complete after {elapsed_time}s - proceeding anyway")
         
         # Update progress
         self.update_state(
@@ -535,7 +608,7 @@ def process_uploaded_book(self, uploaded_book_id):
         )
         
         # ==================== AUTO-GENERATE MCQs ====================
-        logger.info(f"🎯 Auto-generating MCQs for uploaded chapter...")
+        logger.info(f"[TARGET] Auto-generating MCQs for uploaded chapter...")
         try:
             from students.improved_quiz_generator import generate_quiz_with_textbook_questions
             
@@ -554,7 +627,7 @@ def process_uploaded_book(self, uploaded_book_id):
             ).count()
             chapter_order = existing_chapters + 1
             
-            logger.info(f"📊 Chapter order calculation: {existing_chapters} existing chapters for {class_number_normalized}/{book_obj.subject}, new chapter_order={chapter_order}")
+            logger.info(f"[STATS] Chapter order calculation: {existing_chapters} existing chapters for {class_number_normalized}/{book_obj.subject}, new chapter_order={chapter_order}")
             
             # Generate quiz
             quiz_result = generate_quiz_with_textbook_questions(
@@ -566,14 +639,14 @@ def process_uploaded_book(self, uploaded_book_id):
             )
             
             if quiz_result.get('status') == 'success':
-                logger.info(f"✅ Successfully auto-generated {quiz_result.get('questions_generated', 0)} MCQs!")
+                logger.info(f"[OK] Successfully auto-generated {quiz_result.get('questions_generated', 0)} MCQs!")
                 book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Auto-generated {quiz_result.get('questions_generated', 0)} MCQs."
             else:
-                logger.warning(f"⚠️ Quiz generation completed with warnings: {quiz_result.get('message', 'Unknown')}")
+                logger.warning(f"[WARNING] Quiz generation completed with warnings: {quiz_result.get('message', 'Unknown')}")
                 book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Quiz generation: {quiz_result.get('message', 'Partial success')}"
                 
         except Exception as quiz_error:
-            logger.error(f"❌ Error generating MCQs (upload still successful): {str(quiz_error)}")
+            logger.error(f"[ERROR] Error generating MCQs (upload still successful): {str(quiz_error)}")
             book_obj.notes = f"Successfully processed {total_added} chunks from {len(pages_data)} pages. Note: MCQ auto-generation failed - run 'python manage.py generate_quizzes' manually."
         
         # Update progress
@@ -586,20 +659,20 @@ def process_uploaded_book(self, uploaded_book_id):
         book_obj.status = 'done'
         book_obj.save()
         
-        logger.info(f"✅ Successfully processed upload {uploaded_book_id}: {total_added} chunks")
+        logger.info(f"[OK] Successfully processed upload {uploaded_book_id}: {total_added} chunks")
         
         # Log vector database stats
         try:
             if hasattr(vector_db_manager, 'get_stats'):
                 stats = vector_db_manager.get_stats()
-                logger.info(f"📊 Vector DB Stats: {stats.get('total_documents', 0)} total documents, "
+                logger.info(f"[STATS] Vector DB Stats: {stats.get('total_documents', 0)} total documents, "
                            f"{stats.get('total_classes', 0)} classes")
             else:
                 # Pinecone stats
                 index_stats = vector_db_manager.index.describe_index_stats()
-                logger.info(f"📊 Pinecone Stats: {index_stats.get('total_vector_count', 0)} total vectors")
+                logger.info(f"[STATS] Pinecone Stats: {index_stats.get('total_vector_count', 0)} total vectors")
         except Exception as e:
-            logger.warning(f"⚠️  Could not get vector DB stats: {e}")
+            logger.warning(f"[WARNING]  Could not get vector DB stats: {e}")
         
         return {
             "status": "success",

@@ -2,6 +2,7 @@
 Enhanced ChromaDB utility for storing book chunks with proper labeling
 Format: Class 5, Subject: Maths, Chapter: 1
 """
+import os
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from django.conf import settings
@@ -43,7 +44,7 @@ class ChromaDBManager:
             # Only check VECTOR_DB setting
             vector_db = os.getenv('VECTOR_DB', 'chromadb').lower()
             if vector_db != 'chromadb':
-                logger.warning(f"⚠️  ChromaDB requested but VECTOR_DB={vector_db}. Use vector_db_utils instead.")
+                logger.warning(f"[WARNING]  ChromaDB requested but VECTOR_DB={vector_db}. Use vector_db_utils instead.")
                 # Don't create ChromaDB folder if using Pinecone
                 return
             
@@ -60,11 +61,11 @@ class ChromaDBManager:
             )
             
             self._initialized = True
-            logger.info(f"✅ ChromaDB initialized: {settings.CHROMA_COLLECTION_NAME}")
-            logger.info(f"📊 Current document count: {self.collection.count()}")
+            logger.info(f"[OK] ChromaDB initialized: {settings.CHROMA_COLLECTION_NAME}")
+            logger.info(f"[STATS] Current document count: {self.collection.count()}")
             
         except Exception as e:
-            logger.error(f"❌ Failed to initialize ChromaDB: {str(e)}")
+            logger.error(f"[ERROR] Failed to initialize ChromaDB: {str(e)}")
             raise
     
     def format_metadata(self, standard: str, subject: str, chapter: str, **extra) -> Dict:
@@ -137,7 +138,7 @@ class ChromaDBManager:
             base_metadata = self.format_metadata(standard, subject, chapter)
             base_metadata['source_file'] = source_file
             
-            logger.info(f"📚 Adding chunks for {base_metadata['class']} - "
+            logger.info(f"[BOOK] Adding chunks for {base_metadata['class']} - "
                        f"{base_metadata['subject']} - {base_metadata['chapter']}")
             
             for i in range(0, len(chunks), batch_size):
@@ -184,13 +185,13 @@ class ChromaDBManager:
                 )
                 
                 total_added += len(batch)
-                logger.info(f"✅ Added batch {i//batch_size + 1}: {len(batch)} chunks")
+                logger.info(f"[OK] Added batch {i//batch_size + 1}: {len(batch)} chunks")
             
-            logger.info(f"🎉 Successfully added {total_added} chunks to ChromaDB")
+            logger.info(f"[SUCCESS] Successfully added {total_added} chunks to ChromaDB")
             return total_added
             
         except Exception as e:
-            logger.error(f"❌ Error adding chunks to ChromaDB: {str(e)}")
+            logger.error(f"[ERROR] Error adding chunks to ChromaDB: {str(e)}")
             raise
     
     def query_by_class_subject_chapter(
@@ -242,7 +243,7 @@ class ChromaDBManager:
             elif len(where_conditions) > 1:
                 where_clause = {"$and": where_conditions}
             
-            logger.info(f"🔍 Querying with filters: {where_clause}")
+            logger.info(f"[SEARCH] Querying with filters: {where_clause}")
             
             # Generate query embedding
             query_embedding = embedding_model.encode([query_text]).tolist()[0]
@@ -254,11 +255,11 @@ class ChromaDBManager:
                 where=where_clause
             )
             
-            logger.info(f"🔍 Query returned {len(results['documents'][0])} results")
+            logger.info(f"[SEARCH] Query returned {len(results['documents'][0])} results")
             return results
             
         except Exception as e:
-            logger.error(f"❌ Error querying ChromaDB: {str(e)}")
+            logger.error(f"[ERROR] Error querying ChromaDB: {str(e)}")
             return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
     
     def get_available_classes(self) -> List[str]:
@@ -274,7 +275,7 @@ class ChromaDBManager:
             
             return sorted(list(classes))
         except Exception as e:
-            logger.error(f"❌ Error getting classes: {str(e)}")
+            logger.error(f"[ERROR] Error getting classes: {str(e)}")
             return []
     
     def get_subjects_by_class(self, class_num: str) -> List[str]:
@@ -295,7 +296,7 @@ class ChromaDBManager:
             
             return sorted(list(subjects))
         except Exception as e:
-            logger.error(f"❌ Error getting subjects: {str(e)}")
+            logger.error(f"[ERROR] Error getting subjects: {str(e)}")
             return []
     
     def get_chapters_by_class_subject(self, class_num: str, subject: str) -> List[str]:
@@ -321,7 +322,7 @@ class ChromaDBManager:
             
             return sorted(list(chapters))
         except Exception as e:
-            logger.error(f"❌ Error getting chapters: {str(e)}")
+            logger.error(f"[ERROR] Error getting chapters: {str(e)}")
             return []
     
     def get_stats(self) -> Dict:
@@ -345,7 +346,7 @@ class ChromaDBManager:
             
             return stats
         except Exception as e:
-            logger.error(f"❌ Error getting stats: {str(e)}")
+            logger.error(f"[ERROR] Error getting stats: {str(e)}")
             return {}
     
     def clear_collection(self):
@@ -359,9 +360,9 @@ class ChromaDBManager:
                     "hnsw:space": "cosine"
                 }
             )
-            logger.info("✅ Collection cleared successfully")
+            logger.info("[OK] Collection cleared successfully")
         except Exception as e:
-            logger.error(f"❌ Error clearing collection: {str(e)}")
+            logger.error(f"[ERROR] Error clearing collection: {str(e)}")
 
 
 # Global ChromaDB manager instance

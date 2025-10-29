@@ -67,7 +67,7 @@ def initialize_rag_system():
         vector_manager = get_vector_db_manager()
         RAG_SYSTEM["vector_manager"] = vector_manager
         db_type = "Pinecone" if hasattr(vector_manager, 'index_name') else "ChromaDB"
-        logger.info(f"✅ Vector DB initialized: {db_type}")
+        logger.info(f"[OK] Vector DB initialized: {db_type}")
     except Exception as e:
         logger.error(f"Error initializing Vector DB manager: {e}")
         return # Stop if database fails
@@ -157,7 +157,7 @@ def ask_chatbot(request):
             'great': "Wonderful! 🎉 Keep that enthusiasm going!",
             'awesome': "You're awesome too! 🌟 Let's keep learning!",
             'got it': "Perfect! 👍 Let me know if you need more help!",
-            'yes': "Alright! ✅ What would you like to know?",
+            'yes': "Alright! [OK] What would you like to know?",
             'no': "No worries! 😊 Feel free to ask if you change your mind!",
         }
         
@@ -175,10 +175,7 @@ def ask_chatbot(request):
                 question=question,
                 answer=response,
                 model_used="greeting_response",
-                difficulty_level="casual",
-                context_found=False,
-                rag_used=False,
-                web_used=False
+                difficulty_level="casual"
             )
             # Sync to MongoDB
             try:
@@ -192,7 +189,7 @@ def ask_chatbot(request):
                     difficulty_level="casual"
                 )
             except Exception as mongo_err:
-                logger.warning(f"⚠️  Failed to sync chat to MongoDB: {mongo_err}")
+                logger.warning(f"[WARNING]  Failed to sync chat to MongoDB: {mongo_err}")
         except Exception as e:
             logger.error(f"Error saving greeting to history: {e}")
         
@@ -224,7 +221,7 @@ def ask_chatbot(request):
                 if deleted > 0:
                     return JsonResponse({
                         "status": "success",
-                        "answer": "✅ I've removed that from my permanent memory.",
+                        "answer": "[OK] I've removed that from my permanent memory.",
                         "special_command": "forget"
                     })
                 else:
@@ -277,7 +274,7 @@ def ask_chatbot(request):
             perm_memory.access_count += 1
             perm_memory.save()
             used_cache = True
-            logger.info("✅ Answer from permanent memory")
+            logger.info("[OK] Answer from permanent memory")
     except Exception as e:
         logger.error(f"Error checking permanent memory: {e}")
     
@@ -290,7 +287,7 @@ def ask_chatbot(request):
                 images = cache_entry.images or []
                 sources = cache_entry.sources or []
                 used_cache = True
-                logger.info(f"✅ Answer from cache (hit count: {cache_entry.hit_count})")
+                logger.info(f"[OK] Answer from cache (hit count: {cache_entry.hit_count})")
         except Exception as e:
             logger.error(f"Error checking cache: {e}")
     
@@ -307,24 +304,38 @@ def ask_chatbot(request):
             vector_manager = get_vector_db_manager()
             db_type = "Pinecone" if hasattr(vector_manager, 'index_name') else "ChromaDB"
             
-            # Query vector DB with MAXIMUM results to get comprehensive content
-            logger.info(f"🔍 Querying {db_type} (RAG) for: {question[:50]}...")
+            # Query vector DB ACROSS ALL CHAPTERS in student's class
+            # This allows finding answers even if student doesn't know which chapter contains the info
+            # Example: "What is dune?" → Searches all Class 5 chapters, finds Geography chapter
+            logger.info(f"[SEARCH] Querying {db_type} (RAG) across ALL chapters for Class {standard}: {question[:50]}...")
             results = vector_manager.query_by_class_subject_chapter(
                 query_text=question,
                 class_num=str(standard) if standard else None,
+                subject=None,  # Don't filter by subject - let semantic search find it
+                chapter=None,  # IMPORTANT: Don't filter by chapter - search ALL chapters!
                 n_results=20  # Get maximum relevant chunks for comprehensive answer
             )
             
-            # Extract and format context from ChromaDB
+            # Extract and format context from Vector DB results
             if results and results.get("documents") and results["documents"][0]:
                 documents = results["documents"][0]
                 metadatas = results.get("metadatas", [[]])[0]
                 distances = results.get("distances", [[]])[0]
                 context_parts = []
                 
+                # Track which chapters were found (for logging cross-chapter search)
+                chapters_found = set()
+                subjects_found = set()
+                
                 for i, doc in enumerate(documents):
                     meta = metadatas[i] if i < len(metadatas) else {}
                     similarity = 1 - distances[i] if i < len(distances) else 0
+                    
+                    # Track chapters and subjects
+                    if meta.get('chapter'):
+                        chapters_found.add(meta.get('chapter'))
+                    if meta.get('subject'):
+                        subjects_found.add(meta.get('subject'))
                     
                     # Format source reference with proper labels
                     source_ref = (f"[{meta.get('class', 'Class ?')}, "
@@ -346,12 +357,18 @@ def ask_chatbot(request):
                 
                 rag_context = "\n\n".join(context_parts)
                 context_found = True
-                logger.info(f"✅ Found {len(documents)} relevant chunks from NCERT textbooks ({db_type})")
+                
+                # Log cross-chapter search results
+                logger.info(f"[OK] Found {len(documents)} relevant chunks from NCERT textbooks ({db_type})")
+                logger.info(f"   [BOOK] Subjects found: {', '.join(subjects_found)}")
+                logger.info(f"   [BOOK] Chapters found: {', '.join(sorted(chapters_found))}")
+                if len(chapters_found) > 1:
+                    logger.info(f"   [SUCCESS] Cross-chapter search successful! Found content from {len(chapters_found)} different chapters")
             else:
-                logger.info(f"⚠️  No relevant content found in {db_type}")
+                logger.info(f"[WARNING]  No relevant content found in {db_type}")
                 
         except Exception as e:
-            logger.error(f"❌ Error during Vector DB RAG retrieval: {e}")
+            logger.error(f"[ERROR] Error during Vector DB RAG retrieval: {e}")
             import traceback
             traceback.print_exc()
         
@@ -365,13 +382,13 @@ def ask_chatbot(request):
                 if web_data['success'] and web_data.get('images'):
                     # Add ONLY images, NOT text content (prevent hallucination)
                     images.extend(web_data['images'])
-                    logger.info(f"✅ Web scraping added {len(web_data['images'])} images")
+                    logger.info(f"[OK] Web scraping added {len(web_data['images'])} images")
                         
             except Exception as e:
-                logger.error(f"⚠️  Web scraping error: {e}")
+                logger.error(f"[WARNING]  Web scraping error: {e}")
         else:
             # NO RAG CONTENT FOUND - Return "no content" message instead of hallucinating
-            logger.warning("❌ No RAG content found - returning 'no content' message")
+            logger.warning("[ERROR] No RAG content found - returning 'no content' message")
             return JsonResponse({
                 "status": "success",
                 "answer": ("I apologize, but I couldn't find relevant content about this topic in the NCERT textbooks. "
@@ -424,8 +441,14 @@ def ask_chatbot(request):
         full_context = ""
         if rag_context:
             full_context += f"\n\n📚 **FROM YOUR NCERT TEXTBOOK:**\n{rag_context}\n\n"
-            full_context += ("⚠️ **CRITICAL INSTRUCTION - DO NOT HALLUCINATE:**\n"
+            full_context += ("ℹ️ **NOTE:** This content includes:\n"
+                           "- Regular text from the textbook\n"
+                           "- OCR-extracted text from diagrams, maps, charts, and images\n"
+                           "- Labels and annotations from visual elements\n"
+                           "- Questions from 'Let us reflect', 'Activity', 'Discuss', and 'Do you know' sections\n\n")
+            full_context += ("[WARNING] **CRITICAL INSTRUCTION - DO NOT HALLUCINATE:**\n"
                            "- Answer ONLY using the NCERT textbook content provided above\n"
+                           "- When referring to diagrams/images, mention 'Based on the textbook diagram/map...'\n"
                            "- If the question cannot be answered with the given content, say so clearly\n"
                            "- DO NOT make up information or use knowledge outside this textbook content\n"
                            "- This is the official curriculum - accuracy is more important than completeness\n")
@@ -438,13 +461,15 @@ def ask_chatbot(request):
                 f"Student's Question: {question}\n\n"
                 f"{full_context}\n\n"
                 f"STRICT Answer Instructions:\n"
-                f"1. Answer ONLY using the NCERT textbook content shown above\n"
-                f"2. If the textbook content doesn't answer the question, say: 'I couldn't find this specific information in your textbook'\n"
-                f"3. DO NOT add information from general knowledge\n"
-                f"4. Make it appropriate for Class {standard}\n"
-                f"5. Use simple, clear language from the textbook\n"
-                f"6. Quote or reference the textbook content directly\n"
-                f"7. Keep it engaging but ACCURATE to the textbook ONLY"
+                f"1. Answer ONLY using the NCERT textbook content shown above (includes text AND OCR-extracted image content)\n"
+                f"2. If question asks about diagrams/maps/charts, use the OCR-extracted labels and descriptions\n"
+                f"3. If the textbook content doesn't answer the question, say: 'I couldn't find this specific information in your textbook'\n"
+                f"4. DO NOT add information from general knowledge\n"
+                f"5. Make it appropriate for Class {standard}\n"
+                f"6. Use simple, clear language from the textbook\n"
+                f"7. Quote or reference the textbook content directly\n"
+                f"8. For visual elements, say 'According to the textbook diagram/map...' or 'As shown in the chart...'\n"
+                f"9. Keep it engaging but ACCURATE to the textbook ONLY"
             )
         else:
             # This shouldn't happen due to check above, but just in case
@@ -561,7 +586,7 @@ def ask_chatbot(request):
                             'type': 'ai_generated',
                             'source': 'DALL-E 3'
                         })
-                        logger.info("✅ Successfully generated image with DALL-E")
+                        logger.info("[OK] Successfully generated image with DALL-E")
                         
                     except Exception as dalle_error:
                         logger.error(f"DALL-E image generation failed: {str(dalle_error)}")
@@ -615,7 +640,7 @@ def ask_chatbot(request):
                 
                 # Log cache duration based on quality
                 cache_days = 10 if quality_score >= 0.7 else (3 if quality_score >= 0.5 else 1)
-                logger.info(f"✅ Answer cached for {cache_days} days (quality: {quality_score:.2f}, RAG: {avg_relevance:.2f})")
+                logger.info(f"[OK] Answer cached for {cache_days} days (quality: {quality_score:.2f}, RAG: {avg_relevance:.2f})")
             except Exception as e:
                 logger.error(f"Failed to cache answer: {e}")
 
@@ -631,7 +656,7 @@ def ask_chatbot(request):
                 sources=sources if sources else None,
                 keywords=question[:200]
             )
-            answer += "\n\n✅ **Saved to permanent memory!** I'll remember this for you."
+            answer += "\n\n[OK] **Saved to permanent memory!** I'll remember this for you."
             logger.info("Saved to permanent memory")
         except Exception as e:
             logger.error(f"Failed to save to permanent memory: {e}")
@@ -661,7 +686,7 @@ def ask_chatbot(request):
                 difficulty_level=difficulty_level
             )
         except Exception as mongo_err:
-            logger.warning(f"⚠️  Failed to sync chat to MongoDB: {mongo_err}")
+            logger.warning(f"[WARNING]  Failed to sync chat to MongoDB: {mongo_err}")
     except Exception as db_error:
         logger.error(f"Failed to save chat history: {db_error}")
     
@@ -735,20 +760,20 @@ def report_wrong_answer(request):
             # Report negative feedback and potentially invalidate
             cache_entry.report_negative_feedback()
             
-            logger.warning(f"⚠️  Wrong answer reported by user {request.user.id}: {question[:50]}... "
+            logger.warning(f"[WARNING]  Wrong answer reported by user {request.user.id}: {question[:50]}... "
                          f"(Feedback count: {cache_entry.negative_feedback_count}, Reason: {reason})")
             
             # Return status
             if cache_entry.is_invalidated:
                 return JsonResponse({
                     "status": "success",
-                    "message": "✅ Thanks for reporting! This answer has been removed from cache and won't be shown again.",
+                    "message": "[OK] Thanks for reporting! This answer has been removed from cache and won't be shown again.",
                     "invalidated": True
                 })
             else:
                 return JsonResponse({
                     "status": "success",
-                    "message": "✅ Thanks for the feedback! We're tracking this answer's quality.",
+                    "message": "[OK] Thanks for the feedback! We're tracking this answer's quality.",
                     "invalidated": False,
                     "feedback_count": cache_entry.negative_feedback_count
                 })
@@ -756,7 +781,7 @@ def report_wrong_answer(request):
             # No cache entry found (might already be cleared or never cached)
             return JsonResponse({
                 "status": "success",
-                "message": "✅ Thanks for reporting! This question will be re-evaluated next time.",
+                "message": "[OK] Thanks for reporting! This question will be re-evaluated next time.",
                 "cache_found": False
             })
             
@@ -1118,7 +1143,7 @@ def smart_test_analysis(request):
     from .test_analyzer import get_student_analysis
     import json
     
-    logger.info(f"📊 Smart Analysis requested by: {request.user.email}")
+    logger.info(f"[STATS] Smart Analysis requested by: {request.user.email}")
     
     try:
         # Get comprehensive analysis
@@ -1181,7 +1206,7 @@ def previous_papers_upload(request):
                 status='uploaded'
             )
             
-            logger.info(f"📄 Paper uploaded: {title} by {request.user.email}")
+            logger.info(f"[DOC] Paper uploaded: {title} by {request.user.email}")
             
             return JsonResponse({
                 'success': True,
@@ -1224,7 +1249,7 @@ def analyze_papers(request):
         if not paper_ids:
             return JsonResponse({'error': 'No papers selected'}, status=400)
         
-        logger.info(f"🔍 Analyzing {len(paper_ids)} papers for {request.user.email}")
+        logger.info(f"[SEARCH] Analyzing {len(paper_ids)} papers for {request.user.email}")
         
         # Get papers
         papers = PreviousYearPaper.objects.filter(
@@ -1329,7 +1354,7 @@ def analyze_papers(request):
         # Add papers to analysis
         analysis.papers.set(papers)
         
-        logger.info(f"✅ Analysis complete for {request.user.email}")
+        logger.info(f"[OK] Analysis complete for {request.user.email}")
         
         return JsonResponse({
             'success': True,

@@ -34,7 +34,7 @@ class PineconeDBManager:
             index_name = os.getenv('PINECONE_INDEX_NAME', 'ncert-learning-rag')
             
             if not api_key or api_key == 'your_pinecone_api_key_here':
-                raise ValueError("❌ PINECONE_API_KEY not set in .env file")
+                raise ValueError("[ERROR] PINECONE_API_KEY not set in .env file")
             
             # Initialize Pinecone (v7+ doesn't need environment parameter)
             self.pc = Pinecone(api_key=api_key)
@@ -66,11 +66,11 @@ class PineconeDBManager:
             stats = self.index.describe_index_stats()
             total_vectors = stats.get('total_vector_count', 0)
             
-            logger.info(f"✅ Pinecone initialized: {index_name}")
-            logger.info(f"📊 Current vector count: {total_vectors}")
+            logger.info(f"[OK] Pinecone initialized: {index_name}")
+            logger.info(f"[STATS] Current vector count: {total_vectors}")
             
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Pinecone: {str(e)}")
+            logger.error(f"[ERROR] Failed to initialize Pinecone: {str(e)}")
             raise
     
     def format_metadata(self, standard: str, subject: str, chapter: str, **extra) -> Dict:
@@ -141,7 +141,7 @@ class PineconeDBManager:
             base_metadata = self.format_metadata(standard, subject, chapter)
             base_metadata['source_file'] = source_file
             
-            logger.info(f"📚 Adding chunks for {base_metadata['class']} - "
+            logger.info(f"[BOOK] Adding chunks for {base_metadata['class']} - "
                        f"{base_metadata['subject']} - {base_metadata['chapter']}")
             
             for i in range(0, len(chunks), batch_size):
@@ -185,13 +185,13 @@ class PineconeDBManager:
                 self.index.upsert(vectors=vectors_to_upsert)
                 
                 total_added += len(batch)
-                logger.info(f"✅ Added batch {i//batch_size + 1}: {len(batch)} chunks")
+                logger.info(f"[OK] Added batch {i//batch_size + 1}: {len(batch)} chunks")
             
-            logger.info(f"🎉 Successfully added {total_added} chunks to Pinecone")
+            logger.info(f"[SUCCESS] Successfully added {total_added} chunks to Pinecone")
             return total_added
             
         except Exception as e:
-            logger.error(f"❌ Error adding chunks to Pinecone: {str(e)}")
+            logger.error(f"[ERROR] Error adding chunks to Pinecone: {str(e)}")
             raise
     
     def query_by_class_subject_chapter(
@@ -252,7 +252,7 @@ class PineconeDBManager:
             if chapter:
                 search_desc += f", chapter={chapter}"
             
-            logger.info(f"🔍 Querying Pinecone ({search_desc})")
+            logger.info(f"[SEARCH] Querying Pinecone ({search_desc})")
             logger.info(f"   Filter: {pinecone_filter}")
             
             # Generate query embedding
@@ -285,7 +285,7 @@ class PineconeDBManager:
                     matches = filtered_matches
                     logger.info(f"✓ Filtered to {len(matches)} results matching subject '{subject}'")
                 else:
-                    logger.info(f"⚠️  No exact subject match for '{subject}', returning all results from class")
+                    logger.info(f"[WARNING]  No exact subject match for '{subject}', returning all results from class")
                     matches = matches[:n_results]  # Return top results anyway
             
             # Limit to requested number of results
@@ -296,7 +296,7 @@ class PineconeDBManager:
             metadatas = [[match['metadata'] for match in matches]]
             distances = [[match.get('score', 0.0) for match in matches]]
             
-            logger.info(f"🔍 Query returned {len(matches)} results")
+            logger.info(f"[SEARCH] Query returned {len(matches)} results")
             
             return {
                 'documents': documents,
@@ -305,7 +305,7 @@ class PineconeDBManager:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error querying Pinecone: {str(e)}")
+            logger.error(f"[ERROR] Error querying Pinecone: {str(e)}")
             return {'documents': [[]], 'metadatas': [[]], 'distances': [[]]}
     
     def get_available_classes(self) -> List[str]:
@@ -314,28 +314,28 @@ class PineconeDBManager:
             # Pinecone doesn't have a direct way to get unique values
             # We'll need to query and extract from results
             # This is a limitation - consider caching in MongoDB
-            logger.warning("⚠️  get_available_classes() requires full scan in Pinecone - consider caching")
+            logger.warning("[WARNING]  get_available_classes() requires full scan in Pinecone - consider caching")
             return []  # Implement caching in MongoDB if needed
         except Exception as e:
-            logger.error(f"❌ Error getting classes: {str(e)}")
+            logger.error(f"[ERROR] Error getting classes: {str(e)}")
             return []
     
     def get_subjects_by_class(self, class_num: str) -> List[str]:
         """Get all subjects available for a specific class"""
         try:
-            logger.warning("⚠️  get_subjects_by_class() requires full scan - consider caching in MongoDB")
+            logger.warning("[WARNING]  get_subjects_by_class() requires full scan - consider caching in MongoDB")
             return []
         except Exception as e:
-            logger.error(f"❌ Error getting subjects: {str(e)}")
+            logger.error(f"[ERROR] Error getting subjects: {str(e)}")
             return []
     
     def get_chapters_by_class_subject(self, class_num: str, subject: str) -> List[str]:
         """Get all chapters for a specific class and subject"""
         try:
-            logger.warning("⚠️  get_chapters_by_class_subject() requires full scan - consider caching in MongoDB")
+            logger.warning("[WARNING]  get_chapters_by_class_subject() requires full scan - consider caching in MongoDB")
             return []
         except Exception as e:
-            logger.error(f"❌ Error getting chapters: {str(e)}")
+            logger.error(f"[ERROR] Error getting chapters: {str(e)}")
             return []
     
     def get_stats(self) -> Dict:
@@ -350,7 +350,7 @@ class PineconeDBManager:
                 'namespaces': stats.get('namespaces', {})
             }
         except Exception as e:
-            logger.error(f"❌ Error getting stats: {str(e)}")
+            logger.error(f"[ERROR] Error getting stats: {str(e)}")
             return {}
     
     def clear_collection(self):
@@ -358,7 +358,7 @@ class PineconeDBManager:
         try:
             # Delete all vectors by deleting and recreating index
             self.pc.delete_index(self.index_name)
-            logger.info(f"✅ Deleted Pinecone index: {self.index_name}")
+            logger.info(f"[OK] Deleted Pinecone index: {self.index_name}")
             
             # Recreate
             self.pc.create_index(
@@ -369,18 +369,18 @@ class PineconeDBManager:
             )
             time.sleep(5)
             self.index = self.pc.Index(self.index_name)
-            logger.info(f"✅ Recreated Pinecone index: {self.index_name}")
+            logger.info(f"[OK] Recreated Pinecone index: {self.index_name}")
             
         except Exception as e:
-            logger.error(f"❌ Error clearing index: {str(e)}")
+            logger.error(f"[ERROR] Error clearing index: {str(e)}")
     
     def delete_by_filter(self, filter_dict: Dict):
         """Delete vectors matching a filter (e.g., specific chapter)"""
         try:
             self.index.delete(filter=filter_dict)
-            logger.info(f"✅ Deleted vectors with filter: {filter_dict}")
+            logger.info(f"[OK] Deleted vectors with filter: {filter_dict}")
         except Exception as e:
-            logger.error(f"❌ Error deleting by filter: {str(e)}")
+            logger.error(f"[ERROR] Error deleting by filter: {str(e)}")
 
 
 # Singleton instance
