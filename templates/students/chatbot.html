@@ -13,9 +13,9 @@
         <p class="text-gray-600">Ask any question about your NCERT curriculum. I'm here to help!</p>
     </div>
     
-    <!-- Model Selection -->
+    <!-- Model Selection & Voice Controls -->
     <div class="bg-white rounded-lg shadow-md p-4 mb-4 fade-in">
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between mb-4">
             <label class="text-sm font-semibold text-gray-700">AI Model:</label>
             <div class="flex space-x-4">
                 <label class="flex items-center cursor-pointer">
@@ -26,6 +26,82 @@
                     <input type="radio" name="model" value="gemini" x-model="selectedModel" class="mr-2">
                     <span class="text-sm">Google Gemini</span>
                 </label>
+            </div>
+        </div>
+        
+        <!-- Voice Mode Controls -->
+        <div class="border-t pt-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <i class="fas fa-microphone text-purple-500 text-xl"></i>
+                    <div>
+                        <label class="text-sm font-semibold text-gray-700">Voice Conversation Mode</label>
+                        <p class="text-xs text-gray-500">Talk to AI and hear responses</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <!-- Voice Mode Toggle -->
+                    <button 
+                        @click="toggleVoiceMode()" 
+                        class="px-4 py-2 rounded-lg font-semibold transition-all duration-300"
+                        :class="voiceMode ? 'bg-purple-500 text-white shadow-lg' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'">
+                        <i class="fas" :class="voiceMode ? 'fa-microphone' : 'fa-microphone-slash'"></i>
+                        <span class="ml-2" x-text="voiceMode ? 'Voice ON' : 'Voice OFF'"></span>
+                    </button>
+                    
+                    <!-- Hold to Speak Button (only when voice mode is on) -->
+                    <button 
+                        x-show="voiceMode"
+                        @mousedown="startListening()" 
+                        @mouseup="stopListening()"
+                        @touchstart="startListening()"
+                        @touchend="stopListening()"
+                        :disabled="isTyping"
+                        class="px-6 py-2 rounded-lg font-semibold transition-all duration-300 relative overflow-hidden"
+                        :class="isListening ? 'bg-red-500 text-white animate-pulse' : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600'">
+                        <i class="fas fa-microphone-alt mr-2"></i>
+                        <span x-text="isListening ? 'Listening...' : 'Hold to Speak'"></span>
+                        <span x-show="isListening" class="absolute inset-0 bg-red-600 opacity-50 animate-ping"></span>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Voice Status Indicators -->
+            <div x-show="voiceMode" class="mt-3 flex items-center justify-between text-sm">
+                <div class="flex items-center space-x-4">
+                    <!-- Listening Status -->
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2 h-2 rounded-full" :class="isListening ? 'bg-red-500 animate-pulse' : 'bg-gray-300'"></div>
+                        <span class="text-gray-600" x-text="isListening ? 'Listening to your voice...' : 'Ready to listen'"></span>
+                    </div>
+                    
+                    <!-- Speaking Status -->
+                    <div x-show="isSpeaking" class="flex items-center space-x-2">
+                        <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                        <span class="text-gray-600">AI is speaking...</span>
+                    </div>
+                </div>
+                
+                <!-- Voice Language -->
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-language text-gray-400"></i>
+                    <select x-model="voiceLang" class="text-xs border border-gray-300 rounded px-2 py-1">
+                        <option value="en-IN">English (India)</option>
+                        <option value="en-US">English (US)</option>
+                        <option value="hi-IN">Hindi</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Browser Compatibility Warning -->
+            <div x-show="!speechSupported && voiceMode" class="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <div class="flex items-start space-x-2">
+                    <i class="fas fa-exclamation-triangle text-yellow-600 mt-0.5"></i>
+                    <div class="text-xs text-yellow-800">
+                        <strong>Voice features not fully supported in this browser.</strong>
+                        <br>For best experience, use Chrome, Edge, or Safari.
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -211,10 +287,20 @@
         <!-- Input Area -->
         <div class="border-t border-gray-200 p-4 bg-white">
             <form @submit.prevent="sendMessage" class="flex space-x-2">
+                <!-- Voice Input Button (mobile-friendly) -->
+                <button 
+                    x-show="voiceMode"
+                    type="button"
+                    @click="toggleVoiceInput()"
+                    :class="isListening ? 'bg-red-500 animate-pulse' : 'bg-purple-500 hover:bg-purple-600'"
+                    class="px-4 py-3 text-white rounded-lg transition duration-300">
+                    <i class="fas" :class="isListening ? 'fa-stop' : 'fa-microphone'"></i>
+                </button>
+                
                 <input 
                     type="text" 
                     x-model="currentMessage"
-                    placeholder="Ask your question here..."
+                    :placeholder="voiceMode ? 'Type or use voice...' : 'Ask your question here...'"
                     class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     :disabled="isTyping"
                 >
@@ -225,6 +311,12 @@
                     <i class="fas fa-paper-plane mr-2"></i>Send
                 </button>
             </form>
+            
+            <!-- Voice transcript display -->
+            <div x-show="isListening && interimTranscript" class="mt-2 text-sm text-gray-600 italic">
+                <i class="fas fa-microphone text-red-500 animate-pulse mr-2"></i>
+                <span x-text="interimTranscript"></span>
+            </div>
         </div>
     </div>
 </div>
@@ -306,6 +398,76 @@
     max-height: 90%;
     object-fit: contain;
 }
+
+/* Voice Mode Animations */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.05);
+    }
+}
+
+@keyframes ping {
+    75%, 100% {
+        transform: scale(2);
+        opacity: 0;
+    }
+}
+
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-ping {
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Listening indicator */
+.listening-wave {
+    animation: listening-wave 1.5s ease-in-out infinite;
+}
+
+@keyframes listening-wave {
+    0%, 100% {
+        height: 0.5rem;
+    }
+    50% {
+        height: 1.5rem;
+    }
+}
+
+/* Voice button hover effects */
+.voice-btn-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.voice-btn-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.voice-btn-hover:active {
+    transform: translateY(0);
+    box-shadow: 0 5px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* Speaking indicator glow */
+.speaking-glow {
+    animation: speaking-glow 2s ease-in-out infinite;
+}
+
+@keyframes speaking-glow {
+    0%, 100% {
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+    }
+}
 </style>
 {% endblock %}
 
@@ -319,6 +481,241 @@ function chatbot() {
         isTyping: false,
         selectedModel: 'openai',
         imageModal: null,
+        
+        // Voice Conversation Features
+        voiceMode: false,
+        isListening: false,
+        isSpeaking: false,
+        recognition: null,
+        synthesis: window.speechSynthesis,
+        voiceLang: 'en-IN',
+        speechSupported: false,
+        interimTranscript: '',
+        
+        // Initialize voice features on component load
+        init() {
+            this.initVoiceRecognition();
+            this.checkSpeechSupport();
+        },
+        
+        // Check browser support for speech features
+        checkSpeechSupport() {
+            const hasRecognition = ('webkitSpeechRecognition' in window) || ('SpeechRecognition' in window);
+            const hasSynthesis = ('speechSynthesis' in window);
+            this.speechSupported = hasRecognition && hasSynthesis;
+            
+            if (!this.speechSupported) {
+                console.warn('Speech features not fully supported in this browser');
+            }
+        },
+        
+        // Initialize Speech Recognition (STT)
+        initVoiceRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                console.warn('Speech Recognition not supported');
+                return;
+            }
+            
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            this.recognition = new SpeechRecognition();
+            
+            // Configuration
+            this.recognition.continuous = false; // Stop after user finishes speaking
+            this.recognition.interimResults = true; // Show real-time transcription
+            this.recognition.maxAlternatives = 1;
+            
+            // Event: Recognition starts
+            this.recognition.onstart = () => {
+                console.log('Voice recognition started');
+                this.isListening = true;
+                this.interimTranscript = '';
+            };
+            
+            // Event: Real-time results
+            this.recognition.onresult = (event) => {
+                let interim = '';
+                let final = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    if (event.results[i].isFinal) {
+                        final += transcript;
+                    } else {
+                        interim += transcript;
+                    }
+                }
+                
+                // Show interim transcript (real-time)
+                if (interim) {
+                    this.interimTranscript = interim;
+                }
+                
+                // Set final transcript
+                if (final) {
+                    this.currentMessage = final;
+                    this.interimTranscript = '';
+                }
+            };
+            
+            // Event: Recognition ends
+            this.recognition.onend = () => {
+                console.log('Voice recognition ended');
+                this.isListening = false;
+                this.interimTranscript = '';
+                
+                // Auto-send message if we have text
+                if (this.currentMessage.trim()) {
+                    setTimeout(() => this.sendMessage(), 300);
+                }
+            };
+            
+            // Event: Recognition error
+            this.recognition.onerror = (event) => {
+                console.error('Speech recognition error:', event.error);
+                this.isListening = false;
+                this.interimTranscript = '';
+                
+                // Show user-friendly error messages
+                if (event.error === 'no-speech') {
+                    this.showVoiceError('No speech detected. Please try again.');
+                } else if (event.error === 'audio-capture') {
+                    this.showVoiceError('Microphone not found. Please check your device.');
+                } else if (event.error === 'not-allowed') {
+                    this.showVoiceError('Microphone permission denied. Please allow access.');
+                } else {
+                    this.showVoiceError('Voice recognition error. Please try again.');
+                }
+            };
+        },
+        
+        // Toggle voice mode on/off
+        toggleVoiceMode() {
+            this.voiceMode = !this.voiceMode;
+            
+            if (this.voiceMode) {
+                console.log('Voice mode enabled');
+                // Stop any ongoing speech
+                if (this.synthesis.speaking) {
+                    this.synthesis.cancel();
+                }
+            } else {
+                console.log('Voice mode disabled');
+                // Stop listening and speaking
+                if (this.isListening) {
+                    this.stopListening();
+                }
+                if (this.synthesis.speaking) {
+                    this.synthesis.cancel();
+                    this.isSpeaking = false;
+                }
+            }
+        },
+        
+        // Start voice input (for desktop - hold button)
+        startListening() {
+            if (!this.recognition || !this.voiceMode || this.isListening) return;
+            
+            try {
+                // Set language before starting
+                this.recognition.lang = this.voiceLang;
+                this.recognition.start();
+            } catch (error) {
+                console.error('Error starting recognition:', error);
+            }
+        },
+        
+        // Stop voice input (for desktop - release button)
+        stopListening() {
+            if (!this.recognition || !this.isListening) return;
+            
+            try {
+                this.recognition.stop();
+            } catch (error) {
+                console.error('Error stopping recognition:', error);
+            }
+        },
+        
+        // Toggle voice input (for mobile - tap button)
+        toggleVoiceInput() {
+            if (this.isListening) {
+                this.stopListening();
+            } else {
+                this.startListening();
+            }
+        },
+        
+        // Text-to-Speech: Speak AI response
+        speakResponse(text) {
+            if (!this.voiceMode || !this.synthesis) return;
+            
+            // Cancel any ongoing speech
+            if (this.synthesis.speaking) {
+                this.synthesis.cancel();
+            }
+            
+            // Remove markdown formatting for cleaner speech
+            const cleanText = this.cleanTextForSpeech(text);
+            
+            // Create utterance
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = this.voiceLang;
+            utterance.rate = 0.9; // Slightly slower for clarity
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            
+            // Events
+            utterance.onstart = () => {
+                console.log('AI started speaking');
+                this.isSpeaking = true;
+            };
+            
+            utterance.onend = () => {
+                console.log('AI finished speaking');
+                this.isSpeaking = false;
+            };
+            
+            utterance.onerror = (event) => {
+                console.error('Speech synthesis error:', event.error);
+                this.isSpeaking = false;
+            };
+            
+            // Speak!
+            this.synthesis.speak(utterance);
+        },
+        
+        // Clean text for speech (remove markdown, special chars)
+        cleanTextForSpeech(text) {
+            return text
+                // Remove markdown headers
+                .replace(/#{1,6}\s+(.*?)(\n|$)/g, '$1. ')
+                // Remove bold/italic
+                .replace(/\*\*(.*?)\*\*/g, '$1')
+                .replace(/\*(.*?)\*/g, '$1')
+                // Remove bullet points
+                .replace(/^\s*[-*]\s+/gm, '')
+                // Remove numbered lists
+                .replace(/^\s*\d+\.\s+/gm, '')
+                // Remove excessive newlines
+                .replace(/\n{3,}/g, '. ')
+                .replace(/\n{2}/g, '. ')
+                .replace(/\n/g, ' ')
+                // Remove HTML tags (if any)
+                .replace(/<[^>]*>/g, '')
+                // Clean up spaces
+                .replace(/\s{2,}/g, ' ')
+                .trim();
+        },
+        
+        // Show voice error as a message
+        showVoiceError(errorText) {
+            const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            this.messages.push({
+                text: errorText,
+                formattedText: `<div class="text-red-600"><i class="fas fa-exclamation-circle mr-2"></i>${errorText}</div>`,
+                isUser: false,
+                time: now
+            });
+        },
         
         // Format Markdown to HTML
         formatMarkdown(text) {
@@ -432,6 +829,11 @@ function chatbot() {
                     
                     this.messages.push(message);
                     
+                    // 🔊 VOICE OUTPUT: Speak the AI response if voice mode is on
+                    if (this.voiceMode) {
+                        this.speakResponse(data.answer);
+                    }
+                    
                     // Log for debugging
                     console.log('Response data:', {
                         hasImages: data.images && data.images.length > 0,
@@ -443,12 +845,18 @@ function chatbot() {
                     });
                     
                 } else {
+                    const errorMsg = data.error || 'Sorry, something went wrong. Please try again.';
                     this.messages.push({
-                        text: data.error || 'Sorry, something went wrong. Please try again.',
-                        formattedText: data.error || 'Sorry, something went wrong. Please try again.',
+                        text: errorMsg,
+                        formattedText: errorMsg,
                         isUser: false,
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                     });
+                    
+                    // Speak error message if voice mode is on
+                    if (this.voiceMode) {
+                        this.speakResponse(errorMsg);
+                    }
                 }
                 
                 // Scroll to bottom
