@@ -571,3 +571,101 @@ class PaperAnalysis(models.Model):
         ordering = ['-analysis_completed_at']
         verbose_name_plural = "Paper Analyses"
 
+
+class SpeakingSession(models.Model):
+    """
+    AI Speaking Practice Sessions with detailed analytics
+    Similar to Zoom meeting but audio-only for speaking practice
+    """
+    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    
+    # Session details
+    PRACTICE_TYPES = [
+        ('free', 'Free Conversation'),
+        ('topic', 'Topic-Based Discussion'),
+        ('presentation', 'Presentation Practice'),
+        ('interview', 'Interview Simulation'),
+    ]
+    practice_type = models.CharField(max_length=50, choices=PRACTICE_TYPES, default='free')
+    topic = models.CharField(max_length=200, null=True, blank=True)
+    duration = models.IntegerField(help_text="Duration in seconds")
+    exchange_count = models.IntegerField(default=0, help_text="Number of back-and-forth exchanges")
+    word_count = models.IntegerField(default=0, help_text="Total words spoken by student")
+    
+    # Conversation data
+    conversation_data = models.JSONField(
+        help_text="Full conversation history with timestamps"
+    )
+    
+    # Overall scores (0-100)
+    overall_score = models.IntegerField(default=0)
+    grammar_score = models.IntegerField(default=0)
+    fluency_score = models.IntegerField(default=0)
+    vocabulary_score = models.IntegerField(default=0)
+    pronunciation_score = models.IntegerField(default=0)
+    coherence_score = models.IntegerField(default=0)
+    confidence_score = models.IntegerField(default=0)
+    
+    # Detailed analysis (JSON format)
+    grammar_errors = models.JSONField(
+        default=list,
+        help_text="List of grammar errors with corrections"
+    )
+    filler_words = models.JSONField(
+        default=list,
+        help_text="Filler words count (um, like, etc.)"
+    )
+    speaking_pace = models.JSONField(
+        default=dict,
+        help_text="Words per minute analysis"
+    )
+    strengths = models.JSONField(
+        default=list,
+        help_text="Identified strengths"
+    )
+    improvements = models.JSONField(
+        default=list,
+        help_text="Areas for improvement"
+    )
+    suggestions = models.JSONField(
+        default=list,
+        help_text="Detailed improvement suggestions with examples"
+    )
+    vocabulary_enhancement = models.JSONField(
+        default=list,
+        help_text="Vocabulary suggestions (basic → advanced)"
+    )
+    best_exchanges = models.JSONField(
+        default=list,
+        help_text="Best conversation exchanges"
+    )
+    needs_work = models.JSONField(
+        default=list,
+        help_text="Exchanges that need improvement"
+    )
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = "Speaking Sessions"
+        indexes = [
+            models.Index(fields=['student', '-created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.student.email} - {self.get_practice_type_display()} - {self.overall_score}/100"
+    
+    def get_duration_display(self):
+        """Return duration in human-readable format"""
+        minutes = self.duration // 60
+        seconds = self.duration % 60
+        return f"{minutes}m {seconds}s"
+    
+    def get_speaking_rate_display(self):
+        """Calculate words per minute"""
+        if self.duration > 0:
+            return round((self.word_count / self.duration) * 60, 1)
+        return 0
+

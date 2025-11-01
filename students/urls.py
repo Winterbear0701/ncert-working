@@ -1,6 +1,7 @@
 from django.urls import path
 from . import views
 from . import quiz_views
+from . import speaking_views
 
 app_name = 'students'
 
@@ -9,6 +10,13 @@ urlpatterns = [
     path("chatbot/", views.chatbot_page, name="chatbot_page"),
     path("ask_chatbot/", views.ask_chatbot, name="ask_chatbot"),
     path("report-wrong-answer/", views.report_wrong_answer, name="report_wrong_answer"),  # NEW: Feedback endpoint
+    
+    # Speaking Practice URLs
+    path("speaking-practice/", speaking_views.speaking_practice_room, name="speaking_practice_room"),
+    path("speaking-practice/respond/", speaking_views.speaking_practice_respond, name="speaking_practice_respond"),
+    path("speaking-practice/analyze/", speaking_views.analyze_speaking_session, name="analyze_speaking_session"),
+    path("speaking-practice/history/", speaking_views.speaking_practice_history, name="speaking_practice_history"),
+    path("speaking-practice/detail/<int:session_id>/", speaking_views.speaking_practice_detail, name="speaking_practice_detail"),
     
     # Smart Analysis
     path("smart-analysis/", views.smart_test_analysis, name="smart_test_analysis"),
