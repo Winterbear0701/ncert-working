@@ -16,7 +16,7 @@ from .models import (
     QuizChapter, QuizQuestion, QuestionVariant,
     StudentChapterProgress, QuizAttempt, QuizAnswer
 )
-from ncert_project.chromadb_utils import get_chromadb_manager
+from ncert_project.vector_db_utils import get_vector_db_manager
 
 logger = logging.getLogger('students')
 
@@ -183,7 +183,7 @@ def start_quiz(request, chapter_id):
                     'difficulty': question.difficulty,
                 })
         
-        logger.info(f"✅ Started quiz attempt {attempt_number} for {user.email} - {chapter.chapter_name}")
+        logger.info(f"[OK] Started quiz attempt {attempt_number} for {user.email} - {chapter.chapter_name}")
         
         # Render the quiz template (shows one question at a time via Alpine.js)
         return render(request, 'students/quiz_question.html', {
@@ -224,7 +224,7 @@ def submit_quiz(request, attempt_id):
         answers_data = json.loads(request.body)
         submitted_answers = answers_data.get('answers', [])
         
-        logger.info(f"📝 Submitting quiz for {user.email} - Attempt {attempt.id}")
+        logger.info(f"[NOTE] Submitting quiz for {user.email} - Attempt {attempt.id}")
         
         # Process each answer
         correct_count = 0
@@ -377,7 +377,7 @@ def submit_quiz(request, attempt_id):
         except Exception as e:
             logger.warning(f"⚠️  Failed to sync progress to MongoDB: {e}")
         
-        logger.info(f"✅ Quiz submitted: Score {score_percentage}% - {'PASSED' if is_passed else 'FAILED'}")
+        logger.info(f"[OK] Quiz submitted: Score {score_percentage}% - {'PASSED' if is_passed else 'FAILED'}")
         
         # Generate redirect URL using reverse
         from django.urls import reverse
@@ -408,12 +408,12 @@ def submit_quiz(request, attempt_id):
 
 def verify_answer_with_rag(question, selected_answer, correct_answer, options, chapter_id, topic):
     """
-    Verify answer using ChromaDB RAG and generate explanation
+    Verify answer using Vector DB (Pinecone/ChromaDB) RAG and generate explanation
     """
     try:
-        # Get relevant content from ChromaDB
-        chroma_manager = get_chromadb_manager()
-        results = chroma_manager.query_by_class_subject_chapter(
+        # Get relevant content from Vector DB (Pinecone in production)
+        vector_manager = get_vector_db_manager()
+        results = vector_manager.query_by_class_subject_chapter(
             query_text=f"{topic} {question}",
             n_results=3
         )
