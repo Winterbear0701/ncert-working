@@ -115,7 +115,7 @@ def speaking_practice_respond(request):
             
             # Fallback to Gemini
             try:
-                model = genai.GenerativeModel("gemini-2.0-flash-exp")
+                model = genai.GenerativeModel("gemini-2.5-flash")
                 
                 # Build prompt for Gemini
                 full_prompt = f"{system_prompt}\n\nConversation so far:\n"
@@ -320,7 +320,7 @@ Analyze this student's English speaking practice session and provide detailed fe
             
             # Fallback to Gemini
             try:
-                model = genai.GenerativeModel("gemini-2.0-flash-exp")
+                model = genai.GenerativeModel("gemini-2.5-flash")
                 response = model.generate_content(analysis_prompt)
                 # Extract JSON from response
                 response_text = response.text

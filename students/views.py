@@ -33,7 +33,7 @@ RAG_SYSTEM = {
     "embedding_model": None,
     "collection": None,
     "openai_model": "gpt-4o-mini",
-    "gemini_model": "gemini-2.0-flash-exp",  # Updated to Gemini 2.0 Flash experimental
+    "gemini_model": "gemini-2.5-flash",  # Latest Gemini 2.5 Flash (stable, fastest, best)
 }
 
 def initialize_rag_system():
@@ -313,7 +313,7 @@ def ask_chatbot(request):
                 class_num=str(standard) if standard else None,
                 subject=None,  # Don't filter by subject - let semantic search find it
                 chapter=None,  # IMPORTANT: Don't filter by chapter - search ALL chapters!
-                n_results=20  # Get maximum relevant chunks for comprehensive answer
+                n_results=3  # Get top 3 most relevant chunks (focused, high-quality results)
             )
             
             # Extract and format context from Vector DB results
@@ -562,38 +562,75 @@ def ask_chatbot(request):
         # 5b. Generate Image if no images found and it's an educational query
         if not images and is_educational_query(question):
             try:
-                logger.info("🎨 No images found, generating image with AI...")
+                logger.info("🎨 No images found, generating image with Gemini AI...")
                 
-                # Create image generation prompt based on the question
-                if age <= 10:
-                    image_prompt = f"Create a colorful, child-friendly illustration for: {question}. Make it fun and educational for a {age}-year-old."
-                else:
-                    image_prompt = f"Create an educational diagram or illustration explaining: {question}. Make it clear and informative for a Class {standard} student."
+                # First, use Gemini to create the perfect image prompt
+                try:
+                    prompt_generator = genai.GenerativeModel('gemini-2.5-flash')
+                    
+                    # Ask Gemini to create an optimal image prompt
+                    meta_prompt = f"""Based on this educational question: "{question}"
+                    
+Create a detailed, specific image generation prompt that would produce the best educational diagram or illustration.
+
+Requirements:
+- Make it appropriate for a Class {standard} student (age {age})
+- Include specific visual elements (labels, arrows, colors, layout)
+- Describe the style (diagram, flowchart, infographic, illustration, etc.)
+- Mention educational clarity and accuracy
+- Keep it under 150 words
+
+Example format: "A colorful educational diagram showing [main concept]. Include [specific elements] with clear labels. Use [color scheme] and [layout style]. Add arrows showing [relationships]. Style: clean infographic with soft colors."
+
+Return ONLY the image prompt, no other text."""
+
+                    prompt_response = prompt_generator.generate_content(meta_prompt)
+                    image_prompt = prompt_response.text.strip()
+                    logger.info(f"📝 Generated image prompt: {image_prompt[:100]}...")
+                    
+                except Exception as prompt_error:
+                    logger.warning(f"⚠️ Prompt generation failed, using default: {prompt_error}")
+                    # Fallback to default prompt
+                    if age <= 10:
+                        image_prompt = f"A colorful, child-friendly educational illustration for: {question}. Make it fun and easy to understand for a {age}-year-old. Include clear labels and simple diagrams. Style: bright, cartoon-like, educational."
+                    else:
+                        image_prompt = f"An educational diagram or illustration explaining: {question}. Make it clear and informative for a Class {standard} student. Include labels, arrows, and structured layout. Style: clean infographic."
                 
-                # Try to generate image with DALL-E (OpenAI)
-                if openai.api_key:
-                    try:
-                        response = openai.images.generate(
-                            model="dall-e-3",
-                            prompt=image_prompt[:1000],  # Limit prompt length
-                            size="1024x1024",
-                            quality="standard",
-                            n=1
-                        )
-                        generated_image_url = response.data[0].url
-                        images.append({
-                            'url': generated_image_url,
-                            'type': 'ai_generated',
-                            'source': 'DALL-E 3'
-                        })
-                        logger.info("[OK] Successfully generated image with DALL-E")
+                # Generate image with Gemini Imagen
+                try:
+                    imagen_model = genai.GenerativeModel('gemini-2.0-flash-exp-image-generation')
+                    
+                    response = imagen_model.generate_content(
+                        image_prompt[:1000],  # Limit prompt length
+                        generation_config={
+                            'temperature': 0.4,  # More consistent, educational results
+                        }
+                    )
+                    
+                    # Get the generated image (base64 encoded)
+                    if response.candidates and len(response.candidates) > 0:
+                        candidate = response.candidates[0]
+                        if candidate.content and candidate.content.parts:
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'inline_data') and part.inline_data:
+                                    # Image is in base64 format
+                                    import base64
+                                    image_data = part.inline_data.data
+                                    mime_type = part.inline_data.mime_type
+                                    
+                                    # Convert to data URL for display
+                                    image_url = f"data:{mime_type};base64,{image_data}"
+                                    images.append({
+                                        'url': image_url,
+                                        'type': 'ai_generated',
+                                        'source': 'Gemini Imagen'
+                                    })
+                                    logger.info("✅ Successfully generated image with Gemini Imagen")
+                                    break
                         
-                    except Exception as dalle_error:
-                        logger.error(f"DALL-E image generation failed: {str(dalle_error)}")
-                        
-                        # Note: Gemini image generation not yet supported in this API
-                        # Add a note to the answer instead
-                        answer += "\n\n💡 *Image could not be generated. Try searching for '{question}' images online for visual reference.*"
+                except Exception as gemini_error:
+                    logger.error(f"❌ Gemini image generation failed: {str(gemini_error)}")
+                    # Don't add note to answer - images are optional
                         
             except Exception as e:
                 logger.error(f"Image generation error: {e}")

@@ -94,7 +94,7 @@ Be thorough and extract ALL questions. Return ONLY the JSON array, no other text
 
         try:
             # Try Gemini first (free)
-            model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            model = genai.GenerativeModel('gemini-2.5-flash')
             response = model.generate_content(prompt)
             result_text = response.text.strip()
             

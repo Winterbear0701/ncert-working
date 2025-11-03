@@ -231,7 +231,7 @@ FEEDBACK: [Your detailed feedback here. Start with what they got RIGHT, then gen
             
             if gemini_key:
                 genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(
                     prompt,
                     generation_config={
@@ -259,7 +259,7 @@ FEEDBACK: [Your detailed feedback here. Start with what they got RIGHT, then gen
             
             if gemini_key:
                 genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                model = genai.GenerativeModel('gemini-2.5-flash')
                 response = model.generate_content(
                     prompt,
                     generation_config={

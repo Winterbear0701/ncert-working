@@ -269,7 +269,7 @@ Generate EXACTLY {num_questions} questions. Return ONLY the JSON array, no other
         if gemini_api_key:
             for attempt in range(max_retries):
                 try:
-                    model = genai.GenerativeModel('gemini-2.0-flash-exp')
+                    model = genai.GenerativeModel('gemini-2.5-flash')
                     response = model.generate_content(
                         prompt,
                         generation_config={
