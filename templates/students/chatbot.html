@@ -51,7 +51,7 @@
                     
                     <!-- Hold to Speak Button (only when voice mode is on) -->
                     <button 
-                        x-show="voiceMode"
+                        x-show="voiceMode && !isSpeaking"
                         @mousedown="startListening()" 
                         @mouseup="stopListening()"
                         @touchstart="startListening()"
@@ -63,33 +63,108 @@
                         <span x-text="isListening ? 'Listening...' : 'Hold to Speak'"></span>
                         <span x-show="isListening" class="absolute inset-0 bg-red-600 opacity-50 animate-ping"></span>
                     </button>
+                    
+                    <!-- Stop Speaking Button (only when AI is speaking) -->
+                    <button 
+                        x-show="voiceMode && isSpeaking"
+                        @click="stopSpeaking()"
+                        class="px-6 py-2 rounded-lg font-semibold transition-all duration-300 bg-red-500 hover:bg-red-600 text-white shadow-lg animate-pulse">
+                        <i class="fas fa-stop-circle mr-2"></i>
+                        <span>Stop Speaking</span>
+                    </button>
                 </div>
             </div>
             
-            <!-- Voice Status Indicators -->
-            <div x-show="voiceMode" class="mt-3 flex items-center justify-between text-sm">
-                <div class="flex items-center space-x-4">
-                    <!-- Listening Status -->
-                    <div class="flex items-center space-x-2">
-                        <div class="w-2 h-2 rounded-full" :class="isListening ? 'bg-red-500 animate-pulse' : 'bg-gray-300'"></div>
-                        <span class="text-gray-600" x-text="isListening ? 'Listening to your voice...' : 'Ready to listen'"></span>
-                    </div>
-                    
-                    <!-- Speaking Status -->
-                    <div x-show="isSpeaking" class="flex items-center space-x-2">
-                        <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
-                        <span class="text-gray-600">AI is speaking...</span>
+            <!-- Voice Status Indicators & Controls -->
+            <div x-show="voiceMode" class="mt-3 space-y-3">
+                <!-- Status Row -->
+                <div class="flex items-center justify-between text-sm">
+                    <div class="flex items-center space-x-4">
+                        <!-- Listening Status -->
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 rounded-full" :class="isListening ? 'bg-red-500 animate-pulse' : 'bg-gray-300'"></div>
+                            <span class="text-gray-600" x-text="isListening ? 'Listening to your voice...' : 'Ready to listen'"></span>
+                        </div>
+                        
+                        <!-- Speaking Status -->
+                        <div x-show="isSpeaking" class="flex items-center space-x-2">
+                            <div class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>
+                            <span class="text-gray-600">AI is speaking...</span>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Voice Language -->
-                <div class="flex items-center space-x-2">
-                    <i class="fas fa-language text-gray-400"></i>
-                    <select x-model="voiceLang" class="text-xs border border-gray-300 rounded px-2 py-1">
-                        <option value="en-IN">English (India)</option>
-                        <option value="en-US">English (US)</option>
-                        <option value="hi-IN">Hindi</option>
-                    </select>
+                <!-- Voice Settings Panel -->
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <!-- Voice Selection -->
+                        <div>
+                            <label class="text-xs font-semibold text-gray-700 mb-1 block flex items-center">
+                                <i class="fas fa-user-circle mr-1"></i>
+                                Voice Character
+                            </label>
+                            <select 
+                                @change="changeVoice($event.target.value)"
+                                class="w-full text-xs border border-gray-300 rounded px-2 py-1.5 focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+                                <template x-for="(voiceOption, index) in availableVoices" :key="index">
+                                    <option :value="index" x-text="voiceOption.displayName"></option>
+                                </template>
+                            </select>
+                        </div>
+                        
+                        <!-- Speech Speed -->
+                        <div>
+                            <label class="text-xs font-semibold text-gray-700 mb-1 block flex items-center justify-between">
+                                <span><i class="fas fa-tachometer-alt mr-1"></i>Speed</span>
+                                <span class="text-purple-600" x-text="voiceRate.toFixed(1) + 'x'"></span>
+                            </label>
+                            <input 
+                                type="range" 
+                                x-model.number="voiceRate" 
+                                min="0.5" 
+                                max="2.0" 
+                                step="0.1"
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                            <div class="flex justify-between text-xs text-gray-500 mt-0.5">
+                                <span>Slow</span>
+                                <span>Fast</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Voice Pitch -->
+                        <div>
+                            <label class="text-xs font-semibold text-gray-700 mb-1 block flex items-center justify-between">
+                                <span><i class="fas fa-music mr-1"></i>Pitch</span>
+                                <span class="text-purple-600" x-text="voicePitch.toFixed(1)"></span>
+                            </label>
+                            <input 
+                                type="range" 
+                                x-model.number="voicePitch" 
+                                min="0.5" 
+                                max="2.0" 
+                                step="0.1"
+                                class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-purple-500">
+                            <div class="flex justify-between text-xs text-gray-500 mt-0.5">
+                                <span>Low</span>
+                                <span>High</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Test Voice Button -->
+                    <div class="mt-2 flex items-center justify-between">
+                        <button 
+                            @click="speakResponse('Hello! This is a test of the selected voice. How does it sound?')"
+                            :disabled="isSpeaking"
+                            class="text-xs px-3 py-1.5 bg-purple-100 hover:bg-purple-200 text-purple-700 rounded font-semibold transition disabled:opacity-50">
+                            <i class="fas fa-volume-up mr-1"></i>
+                            Test Voice
+                        </button>
+                        <div class="text-xs text-gray-500">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <span x-text="availableVoices.length + ' voices available'"></span>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -491,11 +566,16 @@ function chatbot() {
         voiceLang: 'en-IN',
         speechSupported: false,
         interimTranscript: '',
+        availableVoices: [],
+        selectedVoice: null,
+        voiceRate: 0.9,
+        voicePitch: 1.0,
         
         // Initialize voice features on component load
         init() {
             this.initVoiceRecognition();
             this.checkSpeechSupport();
+            this.loadAvailableVoices();
         },
         
         // Check browser support for speech features
@@ -506,6 +586,87 @@ function chatbot() {
             
             if (!this.speechSupported) {
                 console.warn('Speech features not fully supported in this browser');
+            }
+        },
+        
+        // Load available voices from browser
+        loadAvailableVoices() {
+            if (!this.synthesis) return;
+            
+            const loadVoices = () => {
+                const voices = this.synthesis.getVoices();
+                
+                // Filter for English voices (Indian, US, UK, Australian)
+                this.availableVoices = voices.filter(voice => 
+                    voice.lang.startsWith('en-') || voice.lang === 'en'
+                ).map(voice => ({
+                    voice: voice,
+                    name: voice.name,
+                    lang: voice.lang,
+                    gender: this.detectGender(voice.name),
+                    displayName: this.formatVoiceName(voice.name, voice.lang)
+                }));
+                
+                // Set default voice (prefer Indian English female)
+                if (this.availableVoices.length > 0) {
+                    const defaultVoice = this.availableVoices.find(v => 
+                        v.lang === 'en-IN' && v.gender === 'female'
+                    ) || this.availableVoices.find(v => 
+                        v.lang === 'en-IN'
+                    ) || this.availableVoices[0];
+                    
+                    this.selectedVoice = defaultVoice.voice;
+                    console.log(`Default voice: ${defaultVoice.displayName}`);
+                }
+                
+                console.log(`Loaded ${this.availableVoices.length} English voices`);
+            };
+            
+            // Load voices (some browsers need this event)
+            loadVoices();
+            if (this.synthesis.onvoiceschanged !== undefined) {
+                this.synthesis.onvoiceschanged = loadVoices;
+            }
+        },
+        
+        // Detect gender from voice name (heuristic)
+        detectGender(name) {
+            const nameLower = name.toLowerCase();
+            if (nameLower.includes('female') || nameLower.includes('woman') || 
+                nameLower.includes('samantha') || nameLower.includes('karen') ||
+                nameLower.includes('moira') || nameLower.includes('tessa') ||
+                nameLower.includes('veena') || nameLower.includes('rishi')) {
+                return 'female';
+            } else if (nameLower.includes('male') || nameLower.includes('man') ||
+                       nameLower.includes('daniel') || nameLower.includes('thomas') ||
+                       nameLower.includes('oliver') || nameLower.includes('alex')) {
+                return 'male';
+            }
+            return 'neutral';
+        },
+        
+        // Format voice name for display
+        formatVoiceName(name, lang) {
+            // Extract meaningful name parts
+            let displayName = name.replace(/Microsoft|Google|Apple|Enhanced|Natural|Neural|TTS/gi, '').trim();
+            
+            // Add language info
+            const langNames = {
+                'en-IN': '🇮🇳 Indian',
+                'en-US': '🇺🇸 American',
+                'en-GB': '🇬🇧 British',
+                'en-AU': '🇦🇺 Australian'
+            };
+            
+            const langLabel = langNames[lang] || lang;
+            return `${displayName} (${langLabel})`;
+        },
+        
+        // Change voice
+        changeVoice(voiceIndex) {
+            if (voiceIndex >= 0 && voiceIndex < this.availableVoices.length) {
+                this.selectedVoice = this.availableVoices[voiceIndex].voice;
+                console.log(`Voice changed to: ${this.availableVoices[voiceIndex].displayName}`);
             }
         },
         
@@ -563,9 +724,23 @@ function chatbot() {
                 this.isListening = false;
                 this.interimTranscript = '';
                 
-                // Auto-send message if we have text
+                // VALIDATION: Check if message is complete and meaningful
                 if (this.currentMessage.trim()) {
-                    setTimeout(() => this.sendMessage(), 300);
+                    const isValid = this.validateVoiceInput(this.currentMessage);
+                    
+                    if (isValid.valid) {
+                        // Auto-send valid message
+                        setTimeout(() => this.sendMessage(), 300);
+                    } else {
+                        // Show error and keep text in input for user to edit
+                        this.showVoiceError(isValid.error);
+                        // Clear input after 3 seconds
+                        setTimeout(() => {
+                            if (this.currentMessage === isValid.originalText) {
+                                this.currentMessage = '';
+                            }
+                        }, 3000);
+                    }
                 }
             };
             
@@ -659,9 +834,14 @@ function chatbot() {
             // Create utterance
             const utterance = new SpeechSynthesisUtterance(cleanText);
             utterance.lang = this.voiceLang;
-            utterance.rate = 0.9; // Slightly slower for clarity
-            utterance.pitch = 1.0;
+            utterance.rate = this.voiceRate;
+            utterance.pitch = this.voicePitch;
             utterance.volume = 1.0;
+            
+            // Apply selected voice
+            if (this.selectedVoice) {
+                utterance.voice = this.selectedVoice;
+            }
             
             // Events
             utterance.onstart = () => {
@@ -695,6 +875,22 @@ function chatbot() {
                 .replace(/^\s*[-*]\s+/gm, '')
                 // Remove numbered lists
                 .replace(/^\s*\d+\.\s+/gm, '')
+                // 🎯 REMOVE EMOJIS - Prevents reading "thinking face", "smiling face with eyes"
+                // This regex removes all emoji characters (Unicode ranges)
+                .replace(/[\u{1F600}-\u{1F64F}]/gu, '')  // Emoticons
+                .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')  // Misc Symbols and Pictographs
+                .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')  // Transport and Map
+                .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')  // Regional country flags
+                .replace(/[\u{2600}-\u{26FF}]/gu, '')    // Misc symbols
+                .replace(/[\u{2700}-\u{27BF}]/gu, '')    // Dingbats
+                .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')  // Supplemental Symbols and Pictographs
+                .replace(/[\u{1FA00}-\u{1FA6F}]/gu, '')  // Chess Symbols
+                .replace(/[\u{1FA70}-\u{1FAFF}]/gu, '')  // Symbols and Pictographs Extended-A
+                .replace(/[\u{FE00}-\u{FE0F}]/gu, '')    // Variation Selectors
+                .replace(/[\u{1F910}-\u{1F96B}]/gu, '')  // Additional emoticons
+                .replace(/[\u{1F980}-\u{1F9E0}]/gu, '')  // Additional animals and nature
+                // Remove common emoji shortcodes that might be spoken
+                .replace(/:[a-z_]+:/gi, '')               // :smile:, :thumbs_up:, etc.
                 // Remove excessive newlines
                 .replace(/\n{3,}/g, '. ')
                 .replace(/\n{2}/g, '. ')
@@ -706,15 +902,106 @@ function chatbot() {
                 .trim();
         },
         
+        // Validate voice input before sending
+        validateVoiceInput(text) {
+            const trimmed = text.trim();
+            const wordCount = trimmed.split(/\s+/).filter(w => w.length > 0).length;
+            
+            // Check 1: Minimum word count (at least 3 words for a meaningful question)
+            if (wordCount < 3) {
+                return {
+                    valid: false,
+                    error: '❌ Question too short. Please speak at least 3 words. Example: "What is photosynthesis?"',
+                    originalText: trimmed
+                };
+            }
+            
+            // Check 2: Check for common incomplete phrases
+            const incompletePhrases = [
+                /^(let me know|tell me|explain|what are|show me|can you)(\s+(what|all|the|about)?)?$/i,
+                /^(what|where|when|why|how|who)(\s+(is|are|the|a))?$/i,
+                /^(i want to|i need|please|can|could)(\s+(know|learn|ask))?$/i
+            ];
+            
+            for (const pattern of incompletePhrases) {
+                if (pattern.test(trimmed)) {
+                    return {
+                        valid: false,
+                        error: '❌ Incomplete question detected. Please complete your sentence. Example: "What is the water cycle?"',
+                        originalText: trimmed
+                    };
+                }
+            }
+            
+            // Check 3: Check if it ends meaningfully (has at least a subject and potential verb)
+            // This catches cases like "let me know what are all the"
+            if (trimmed.match(/(^|\s)(the|a|an|all|what|which|where)$/i)) {
+                return {
+                    valid: false,
+                    error: '❌ Question appears incomplete. Did you finish speaking? Try again with a complete question.',
+                    originalText: trimmed
+                };
+            }
+            
+            // Check 4: Minimum character length
+            if (trimmed.length < 10) {
+                return {
+                    valid: false,
+                    error: '❌ Question too short. Please ask a complete question about your NCERT textbook.',
+                    originalText: trimmed
+                };
+            }
+            
+            // Check 5: Check for gibberish (too many repeated characters)
+            if (/(.)\1{4,}/.test(trimmed)) {
+                return {
+                    valid: false,
+                    error: '❌ Invalid input detected. Please speak clearly and try again.',
+                    originalText: trimmed
+                };
+            }
+            
+            // All checks passed
+            return {
+                valid: true,
+                error: null,
+                originalText: trimmed
+            };
+        },
+        
         // Show voice error as a message
         showVoiceError(errorText) {
             const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             this.messages.push({
                 text: errorText,
-                formattedText: `<div class="text-red-600"><i class="fas fa-exclamation-circle mr-2"></i>${errorText}</div>`,
+                formattedText: `<div class="text-yellow-600 bg-yellow-50 p-3 rounded-lg border border-yellow-200"><i class="fas fa-exclamation-triangle mr-2"></i>${errorText}</div>`,
                 isUser: false,
                 time: now
             });
+            
+            // Auto-scroll to show error
+            this.$nextTick(() => {
+                const chatBox = document.getElementById('chatMessages');
+                chatBox.scrollTop = chatBox.scrollHeight;
+            });
+        },
+        
+        // Stop AI from speaking (interrupt)
+        stopSpeaking() {
+            if (this.synthesis && this.synthesis.speaking) {
+                this.synthesis.cancel();
+                this.isSpeaking = false;
+                console.log('Speech interrupted by user');
+                
+                // Show feedback
+                const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                this.messages.push({
+                    text: 'Speech stopped',
+                    formattedText: '<div class="text-gray-500 italic text-sm"><i class="fas fa-stop-circle mr-2"></i>You stopped the AI from speaking</div>',
+                    isUser: false,
+                    time: now
+                });
+            }
         },
         
         // Format Markdown to HTML

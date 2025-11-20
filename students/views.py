@@ -327,6 +327,43 @@ def ask_chatbot(request):
                 chapters_found = set()
                 subjects_found = set()
                 
+                # CRITICAL: Check if best match has minimum relevance threshold
+                # This prevents hallucination by rejecting irrelevant matches
+                MIN_RELEVANCE_THRESHOLD = 0.40  # 40% minimum similarity required
+                
+                best_similarity = 1 - distances[0] if distances and len(distances) > 0 else 0
+                
+                if best_similarity < MIN_RELEVANCE_THRESHOLD:
+                    logger.warning(f"[REJECT] Best match relevance ({best_similarity:.1%}) below threshold ({MIN_RELEVANCE_THRESHOLD:.0%})")
+                    logger.warning(f"[REJECT] Question appears to be outside NCERT curriculum: {question[:100]}")
+                    
+                    # Return "not in curriculum" message instead of hallucinating
+                    return JsonResponse({
+                        "status": "success",
+                        "answer": (f"❌ **Content Not Found in NCERT Textbooks**\n\n"
+                                  f"I couldn't find relevant information about \"{question}\" in your NCERT textbooks.\n\n"
+                                  f"**This might mean:**\n"
+                                  f"- This topic is not covered in your current class textbooks\n"
+                                  f"- The question is from a different grade level\n"
+                                  f"- It's outside the NCERT curriculum (like advanced physics topics)\n\n"
+                                  f"**What you can do:**\n"
+                                  f"- ✓ Ask about topics from your NCERT textbooks\n"
+                                  f"- ✓ Check your textbook index to see what's covered\n"
+                                  f"- ✓ Ask your teacher about advanced topics\n"
+                                  f"- ✓ Try rephrasing your question\n\n"
+                                  f"💡 **Tip:** I can only help with content from your NCERT textbooks to ensure accuracy!"),
+                        "images": [],
+                        "sources": [],
+                        "difficulty_level": "out_of_curriculum",
+                        "used_cache": False,
+                        "rag_used": True,
+                        "web_used": False,
+                        "context_found": False,
+                        "student_class": str(standard) if standard else None,
+                        "content_source": "no_relevant_content"
+                    })
+                
+                # Proceed with RAG context building (relevance is sufficient)
                 for i, doc in enumerate(documents):
                     meta = metadatas[i] if i < len(metadatas) else {}
                     similarity = 1 - distances[i] if i < len(distances) else 0
@@ -372,20 +409,15 @@ def ask_chatbot(request):
             import traceback
             traceback.print_exc()
         
-        # 3b. Web Scraping for Images ONLY (no text content)
-        # Only scrape images to supplement RAG content
+        # 3b. Web Scraping DISABLED - Only use NCERT content (no external images)
+        # Reason: User wants strictly NCERT-only content, no web images
+        # Images will come from:
+        # - NCERT textbook PDFs (extracted during upload)
+        # - AI-generated educational diagrams (Gemini Imagen)
+        # - NO web scraping to maintain curriculum accuracy
         if rag_context:
-            try:
-                logger.info("🌐 Web scraping for images only...")
-                web_data = scrape_multiple_sources(question, include_images=True)
-                
-                if web_data['success'] and web_data.get('images'):
-                    # Add ONLY images, NOT text content (prevent hallucination)
-                    images.extend(web_data['images'])
-                    logger.info(f"[OK] Web scraping added {len(web_data['images'])} images")
-                        
-            except Exception as e:
-                logger.error(f"[WARNING]  Web scraping error: {e}")
+            logger.info("✓ RAG context found - will use NCERT images or generate with AI")
+            logger.info("🚫 Web scraping disabled - using only curriculum content")
         else:
             # NO RAG CONTENT FOUND - Return "no content" message instead of hallucinating
             logger.warning("[ERROR] No RAG content found - returning 'no content' message")
@@ -417,23 +449,38 @@ def ask_chatbot(request):
         if not standard:
             standard = 'middle school'
         
-        # Age-appropriate system prompt
+        # Age-appropriate system prompt with STRICT no-hallucination rules
         if age <= 10:  # Class 5-6
             base_system = (
-                f"You are a friendly, patient teacher for a {age}-year-old student in Class {standard}. "
-                f"Explain things in very simple language with fun examples. Use short sentences. "
+                f"You are a friendly, patient NCERT textbook tutor for a {age}-year-old student in Class {standard}. "
+                f"CRITICAL RULES:\n"
+                f"1. Answer ONLY from the NCERT textbook content provided\n"
+                f"2. If the answer is not in the textbook content, say 'I don't have that information in the textbook'\n"
+                f"3. NEVER use general knowledge or external information\n"
+                f"4. When in doubt, say you don't know rather than guessing\n\n"
+                f"Teaching style: Explain things in very simple language with fun examples. Use short sentences. "
                 f"Make learning exciting! Use emojis when appropriate. Break complex ideas into simple steps."
             )
         elif age <= 13:  # Class 7-8
             base_system = (
-                f"You are a helpful tutor for a {age}-year-old student in Class {standard}. "
-                f"Explain clearly with relevant examples. Use simple but proper language. "
+                f"You are a helpful NCERT textbook tutor for a {age}-year-old student in Class {standard}. "
+                f"CRITICAL RULES:\n"
+                f"1. Answer ONLY from the NCERT textbook content provided\n"
+                f"2. If the answer is not in the textbook content, say 'I don't have that information in the textbook'\n"
+                f"3. NEVER use general knowledge or external information\n"
+                f"4. When in doubt, say you don't know rather than guessing\n\n"
+                f"Teaching style: Explain clearly with relevant examples. Use simple but proper language. "
                 f"Make connections to everyday life. Be encouraging and supportive."
             )
         else:  # Class 9-10
             base_system = (
-                f"You are an experienced teacher for a {age}-year-old student in Class {standard}. "
-                f"Provide detailed explanations with examples and applications. "
+                f"You are an experienced NCERT textbook tutor for a {age}-year-old student in Class {standard}. "
+                f"CRITICAL RULES:\n"
+                f"1. Answer ONLY from the NCERT textbook content provided\n"
+                f"2. If the answer is not in the textbook content, say 'I don't have that information in the textbook'\n"
+                f"3. NEVER use general knowledge or external information\n"
+                f"4. When in doubt, say you don't know rather than guessing\n\n"
+                f"Teaching style: Provide detailed explanations with examples and applications. "
                 f"Use proper academic language while keeping it engaging."
             )
         
@@ -726,6 +773,35 @@ Return ONLY the image prompt, no other text."""
             logger.warning(f"[WARNING]  Failed to sync chat to MongoDB: {mongo_err}")
     except Exception as db_error:
         logger.error(f"Failed to save chat history: {db_error}")
+    
+    # 7.5 CRITICAL: Check if AI answer indicates content NOT found
+    # Even if RAG found similar words (high %), if AI says "doesn't cover", "not mentioned", etc.
+    # then we should NOT show sources/images (user feedback: misleading!)
+    not_found_phrases = [
+        "doesn't cover",
+        "doesn't seem to cover",
+        "not mentioned",
+        "couldn't find",
+        "not found",
+        "isn't covered",
+        "not specifically",
+        "not available",
+        "doesn't include",
+        "not in the textbook",
+        "I don't have information",
+        "I couldn't find this"
+    ]
+    
+    answer_lower = answer.lower()
+    content_actually_not_found = any(phrase in answer_lower for phrase in not_found_phrases)
+    
+    if content_actually_not_found:
+        logger.warning(f"[FILTER] Answer indicates content not found despite RAG matches")
+        logger.warning(f"[FILTER] Clearing sources and images to avoid misleading user")
+        sources = []  # Clear sources - they're not relevant
+        images = []   # Clear images - they're not relevant
+        content_found = False
+        rag_context = None  # Mark as no valid RAG context
     
     # 8. Return Enhanced Response with metadata
     return JsonResponse({
